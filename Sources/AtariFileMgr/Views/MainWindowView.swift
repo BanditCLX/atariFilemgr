@@ -22,26 +22,27 @@ struct MainWindowView: View {
 
             Divider()
 
-            // ── Pane headers (labels) ──────────────────────────────────────
-            paneHeaders
-
-            Divider()
-
-            // ── Dual panes ────────────────────────────────────────────────
             GeometryReader { geo in
-                HStack(spacing: 0) {
-                    LocalPaneView(vm: localVM, diskPaneVM: diskVM)
-                        .frame(width: geo.size.width * splitFraction)
+                VStack(spacing: 0) {
+                    // ── Pane headers (labels) ──────────────────────────────────────
+                    paneHeaders(totalWidth: geo.size.width)
 
-                    dividerHandle(in: geo)
+                    Divider()
 
-                    DiskPaneView(vm: diskVM, localVM: localVM)
-                        .frame(maxWidth: .infinity)
+                    // ── Dual panes ────────────────────────────────────────────────
+                    HStack(spacing: 0) {
+                        LocalPaneView(vm: localVM, diskPaneVM: diskVM)
+                            .frame(width: geo.size.width * splitFraction)
+
+                        dividerHandle(in: geo)
+
+                        DiskPaneView(vm: diskVM, localVM: localVM)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .coordinateSpace(name: "splitContainer")
+                    .frame(maxHeight: .infinity)
                 }
-                .coordinateSpace(name: "splitContainer")
             }
-
-
 
             // ── Status bar ────────────────────────────────────────────────
             Divider()
@@ -153,7 +154,7 @@ struct MainWindowView: View {
 
     // MARK: - Pane headers
 
-    private var paneHeaders: some View {
+    private func paneHeaders(totalWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
             HStack {
                 Image(systemName: "desktopcomputer")
@@ -163,9 +164,9 @@ struct MainWindowView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: totalWidth * splitFraction, alignment: .leading)
 
-            Divider().frame(height: 16)
+            Divider().frame(width: 5, height: 16)
 
             HStack {
                 Image(systemName: "opticaldisc")
@@ -255,7 +256,7 @@ struct MainWindowView: View {
             Divider().frame(height: 12)
 
             // Branding
-            Text("v1.0 · coded by Bandit CLiMATiCS")
+            Text("v1.1 · coded by Bandit CLiMATiCS")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .opacity(0.8)

@@ -30,6 +30,11 @@ This project is open source. Feel free to contribute!
 
 ## Version History
 
+**Version 1.1**
+- Aligned split view layout and header dividers dynamically
+- Standardized vertical height of macOS and Atari ST path navigation bars
+- Set consistent heights for file pane action buttons
+
 **Version 1.0** (Initial Release)
 - Improved language handling and disk geometry detection
 - Added support for `.dim` and `.ahd` files (read support only)

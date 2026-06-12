@@ -53,6 +53,7 @@ struct DiskPaneView: View {
         HStack(spacing: 4) {
             Button(action: vm.goUp) {
                 Image(systemName: "arrow.up")
+                    .frame(width: 20, height: 20)
             }
             .disabled(vm.breadcrumbs.count <= 1)
             .buttonStyle(.plain)
@@ -112,15 +113,13 @@ struct DiskPaneView: View {
                 }
                 .disabled(vm.selectedEntries.count != 1)
 
-
-
                 ToolbarIconButton(icon: "arrow.clockwise", tooltip: "Refresh") {
                     vm.refresh()
                 }
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .frame(height: 32)
         .background(.bar)
     }
 

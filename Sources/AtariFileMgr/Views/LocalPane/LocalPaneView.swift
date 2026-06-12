@@ -37,18 +37,21 @@ struct LocalPaneView: View {
         HStack(spacing: 8) {
             Button(action: vm.goBack) {
                 Image(systemName: "chevron.left")
+                    .frame(width: 20, height: 20)
             }
             .disabled(!vm.canGoBack)
             .buttonStyle(.plain)
 
             Button(action: vm.goForward) {
                 Image(systemName: "chevron.right")
+                    .frame(width: 20, height: 20)
             }
             .disabled(!vm.canGoForward)
             .buttonStyle(.plain)
 
             Button(action: vm.goUp) {
                 Image(systemName: "arrow.up")
+                    .frame(width: 20, height: 20)
             }
             .disabled(vm.currentURL.path == "/")
             .buttonStyle(.plain)
@@ -65,11 +68,12 @@ struct LocalPaneView: View {
 
             Button(action: vm.refresh) {
                 Image(systemName: "arrow.clockwise")
+                    .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .frame(height: 32)
         .background(.bar)
     }
 
