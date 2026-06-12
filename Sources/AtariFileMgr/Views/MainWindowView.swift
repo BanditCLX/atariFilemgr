@@ -79,9 +79,10 @@ struct MainWindowView: View {
         HStack(spacing: 6) {
             // App identity
             HStack(spacing: 6) {
-                Image(systemName: "opticaldisc.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.blue)
+                Image("AppIcon", bundle: .module)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
                 Text("AtariFileMgr")
                     .font(.system(size: 14, weight: .semibold))
             }
