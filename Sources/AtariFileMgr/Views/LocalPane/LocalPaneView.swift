@@ -251,9 +251,9 @@ struct LocalPaneView: View {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
-                            if !isSelected {
-                                Divider().padding(.leading, 36)
-                            }
+                            Divider()
+                                .padding(.leading, 36)
+                                .opacity(isSelected ? 0 : 1)
                         }
                     }
                 }

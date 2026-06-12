@@ -291,9 +291,9 @@ struct DiskPaneView: View {
                                 }
                             }
 
-                            if !isSelected {
-                                Divider().padding(.leading, 36)
-                            }
+                            Divider()
+                                .padding(.leading, 36)
+                                .opacity(isSelected ? 0 : 1)
                         }
                     }
                 }
