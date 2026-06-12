@@ -69,7 +69,7 @@ struct DiskFileRowView: View {
                 .frame(width: 110, alignment: .leading)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 1)
+        .padding(.vertical, 4)
         .background(rowBackground)
         // ── Drop: macOS files via NSItemProvider (more reliable than .dropDestination) ──
         .onDrop(of: [.fileURL, .url], isTargeted: entry.isDirectory ? $isURLTargeted : .constant(false)) { providers in

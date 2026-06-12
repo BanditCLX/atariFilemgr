@@ -33,7 +33,7 @@ struct LocalFileRowView: View {
                 .frame(width: 110, alignment: .leading)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 1)
+        .padding(.vertical, 4)
         .background(
             isSelected
             ? Color.accentColor.opacity(0.2)
