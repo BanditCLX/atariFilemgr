@@ -132,9 +132,10 @@ struct LocalPaneView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(vm.items) { item in
+                            let isSelected = vm.selectedItems.contains(item)
                             LocalFileRowView(
                                 item: item,
-                                isSelected: vm.selectedItems.contains(item)
+                                isSelected: isSelected
                             )
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -250,8 +251,9 @@ struct LocalPaneView: View {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
-
-                            Divider().padding(.leading, 36)
+                            if !isSelected {
+                                Divider().padding(.leading, 36)
+                            }
                         }
                     }
                 }

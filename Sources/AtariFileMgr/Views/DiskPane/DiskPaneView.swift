@@ -168,9 +168,10 @@ struct DiskPaneView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(vm.entries) { entry in
+                            let isSelected = vm.selectedEntries.contains(entry)
                             DiskFileRowView(
                                 entry: entry,
-                                isSelected: vm.selectedEntries.contains(entry),
+                                isSelected: isSelected,
                                 // Drop macOS files onto this folder
                                 onURLDrop: entry.isDirectory ? { urls in
                                     let isFromLocalSelection = urls.contains { url in
@@ -290,7 +291,9 @@ struct DiskPaneView: View {
                                 }
                             }
 
-                            Divider().padding(.leading, 36)
+                            if !isSelected {
+                                Divider().padding(.leading, 36)
+                            }
                         }
                     }
                 }
