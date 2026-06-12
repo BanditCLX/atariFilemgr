@@ -79,10 +79,14 @@ struct MainWindowView: View {
         HStack(spacing: 6) {
             // App identity
             HStack(spacing: 6) {
-                Image("AppIcon", bundle: .module)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 18, height: 18)
+                if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png") ??
+                             Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+                   let nsImage = NSImage(contentsOf: url) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                }
                 Text("AtariFileMgr")
                     .font(.system(size: 14, weight: .semibold))
             }
