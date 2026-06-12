@@ -72,34 +72,36 @@ final class WindowDelegateProxy: NSObject, NSWindowDelegate {
         alert.addButton(withTitle: "Don't Save") // Third button (.alertThirdButtonReturn)
 
         alert.beginSheetModal(for: sender) { response in
-            switch response {
-            case .alertFirstButtonReturn: // Save
-                if let url = appVM.diskSourceURL {
-                    let ext = url.pathExtension.lowercased()
-                    if ext == "dim" || ext == "ahd" {
-                        self.handleSaveAsOnClose(window: sender, appVM: appVM)
-                    } else {
-                        do {
-                            try img.save(to: url)
-                            appVM.isDirty = false
-                            sender.close()
-                        } catch {
-                            appVM.presentError(error)
+            DispatchQueue.main.async {
+                switch response {
+                case .alertFirstButtonReturn: // Save
+                    if let url = appVM.diskSourceURL {
+                        let ext = url.pathExtension.lowercased()
+                        if ext == "dim" || ext == "ahd" {
+                            self.handleSaveAsOnClose(window: sender, appVM: appVM)
+                        } else {
+                            do {
+                                try img.save(to: url)
+                                appVM.isDirty = false
+                                sender.close()
+                            } catch {
+                                appVM.presentError(error)
+                            }
                         }
+                    } else {
+                        self.handleSaveAsOnClose(window: sender, appVM: appVM)
                     }
-                } else {
-                    self.handleSaveAsOnClose(window: sender, appVM: appVM)
+
+                case .alertSecondButtonReturn: // Cancel
+                    break
+
+                case .alertThirdButtonReturn: // Don't Save
+                    appVM.isDirty = false
+                    sender.close()
+
+                default:
+                    break
                 }
-
-            case .alertSecondButtonReturn: // Cancel
-                break
-
-            case .alertThirdButtonReturn: // Don't Save
-                appVM.isDirty = false
-                sender.close()
-
-            default:
-                break
             }
         }
         
