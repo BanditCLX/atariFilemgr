@@ -48,6 +48,7 @@ struct MainWindowView: View {
             Divider()
             statusBar
         }
+        .background(WindowAccessor())
         .sheet(isPresented: $showNewDisk)   { NewDiskSheetView(isPresented: $showNewDisk).environmentObject(appVM) }
         .sheet(isPresented: $showProperties) { propertiesSheet }
         .alert("Error", isPresented: $appVM.showError) {
