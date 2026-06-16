@@ -4,13 +4,13 @@ A simple, native macOS application to open, browse, modify and extract files fro
 
 ## Features
 
-- Open and browse **.st**, **.msa**, **.dim** and **.ahd** disk images
+- Open and browse **.st**, **.msa**, **.stx**, **.dim** and **.ahd** disk images
 - Extract, modify and add files inside the disk image
 - Create new blank disk images
 - Custom disk geometries support
 - Native macOS application (Apple Silicon + Intel)
 
-**Note:** You can open `.dim` and `.ahd` files, but saving is currently only supported for `.st` and `.msa` formats.
+**Note:** You can open `.stx` `.dim` and `.ahd` files, but saving is currently only supported for `.st` and `.msa` formats.
 
 ## Inspired by
 
