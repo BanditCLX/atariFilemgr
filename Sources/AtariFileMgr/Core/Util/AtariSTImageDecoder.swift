@@ -510,6 +510,46 @@ struct SwiftPackIce {
     static func decompress(data: Data) -> Data? {
         guard data.count >= 12 else { return nil }
         
+        // ── Pack-Ice Packed Executable Detection ──
+        if data.count >= 60 && data[0] == 0x60 && data[1] == 0x1A {
+            let searchLimit = min(data.count, 512)
+            let searchData = data.prefix(searchLimit)
+            if searchData.range(of: Data("Pack-Ice".utf8)) != nil {
+                var p1: Int? = nil
+                var p2: Int? = nil
+                var p3: Int? = nil
+                
+                let limit = min(data.count - 6, 128)
+                for i in 28..<limit {
+                    if data[i] == 0xDB && data[i+1] == 0xFC {
+                        p1 = i
+                    } else if data[i] == 0x4D && data[i+1] == 0xEC {
+                        p2 = i
+                    } else if data[i] == 0x2E && data[i+1] == 0x3C {
+                        p3 = i
+                    }
+                }
+                
+                let targetP1 = p1 ?? 44
+                let targetP2 = p2 ?? 50
+                let targetP3 = p3 ?? 54
+                
+                if data.count >= targetP3 + 6 {
+                    let packedTextSegSize = (Int(data[targetP1+2]) << 24) | (Int(data[targetP1+3]) << 16) | (Int(data[targetP1+4]) << 8) | Int(data[targetP1+5])
+                    let safetyOffset = (Int(data[targetP2+2]) << 8) | Int(data[targetP2+3])
+                    let rawSize = (Int(data[targetP3+2]) << 24) | (Int(data[targetP3+3]) << 16) | (Int(data[targetP3+4]) << 8) | Int(data[targetP3+5])
+                    
+                    let endPayload = 28 + packedTextSegSize
+                    if endPayload <= data.count {
+                        let bitstream = data.subdata(in: 0..<endPayload)
+                        if let decompressed = decompressExecutableInternal(bitstream: bitstream, rawSize: rawSize, safetyOffset: safetyOffset) {
+                            return decompressed
+                        }
+                    }
+                }
+            }
+        }
+        
         let magic = (Int(data[0]) << 24) | (Int(data[1]) << 16) | (Int(data[2]) << 8) | Int(data[3])
         
         let packedSize: Int
@@ -642,15 +682,21 @@ struct SwiftPackIce {
             rawData[outputOffset] = val
         }
         
+        var hasError = false
         func copy(distance: Int, count: Int) {
             guard distance > 0 && outputOffset >= count else { return }
             for _ in 0..<count {
                 outputOffset -= 1
-                rawData[outputOffset] = rawData[outputOffset + distance]
+                let srcIdx = outputOffset + distance
+                guard srcIdx < rawData.count else {
+                    hasError = true
+                    return
+                }
+                rawData[outputOffset] = rawData[srcIdx]
             }
         }
         
-        while outputOffset > 0 {
+        while outputOffset > 0 && !hasError {
             if readBits(count: 1) != 0 {
                 let vlc = ver != 0 ? litVlcDecoderNew : litVlcDecoderOld
                 guard let val = vlc.decodeCascade(bitReader: readBits) else { return nil }
@@ -660,7 +706,7 @@ struct SwiftPackIce {
                 }
             }
             
-            if outputOffset <= 0 { break }
+            if outputOffset <= 0 || hasError { break }
             
             guard let countBaseVal = countBaseDecoder.decodeCascade(bitReader: readBits) else { return nil }
             let count = Int(countDecoder.decode(base: Int(countBaseVal), bitReader: readBits) + 2)
@@ -689,9 +735,10 @@ struct SwiftPackIce {
                     distance += count
                 }
             }
-            
             copy(distance: distance, count: count)
         }
+        
+        if hasError { return nil }
         
         // Picture mode post-processing
         var availableBits = currentOffset - startOffset
@@ -734,5 +781,145 @@ struct SwiftPackIce {
         }
         
         return Data(rawData.prefix(rawSize))
+    }
+    
+    private static func decompressExecutableInternal(bitstream: Data, rawSize: Int, safetyOffset: Int) -> Data? {
+        let startOffset = 0
+        let endOffset = bitstream.count
+        
+        var currentOffset = endOffset
+        var hasError = false
+        
+        func readByte() -> UInt8 {
+            guard currentOffset > startOffset else {
+                hasError = true
+                return 0
+            }
+            currentOffset -= 1
+            return bitstream[currentOffset]
+        }
+        
+        func readBE32() -> UInt32 {
+            let b0 = UInt32(readByte())
+            let b1 = UInt32(readByte())
+            let b2 = UInt32(readByte())
+            let b3 = UInt32(readByte())
+            return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+        }
+        
+        var bufContent: UInt32 = 0
+        var bufLength: UInt8 = 0
+        
+        func readBits(count: Int) -> UInt32 {
+            var ret: UInt32 = 0
+            var remaining = count
+            while remaining > 0 && !hasError {
+                if bufLength == 0 {
+                    bufContent = readBE32()
+                    bufLength = 32
+                }
+                let maxCount = min(UInt8(remaining), bufLength)
+                bufLength -= maxCount
+                let shift = bufLength
+                let mask = (1 << maxCount) - 1
+                ret = (ret << maxCount) | ((bufContent >> shift) & UInt32(mask))
+                remaining -= Int(maxCount)
+            }
+            return ret
+        }
+        
+        let initialVal = readBE32()
+        var tmp = initialVal
+        var count: UInt32 = 0
+        while tmp != 0 {
+            tmp <<= 1
+            count += 1
+        }
+        if count > 0 {
+            count -= 1
+        }
+        if count > 0 {
+            let shift = 32 - count
+            let bufVal = initialVal >> shift
+            let len = count
+            bufContent = bufVal
+            bufLength = UInt8(len)
+        }
+        
+        let litVlcDecoderNew = SwiftVlcDecoder(bitLengths: [1, 2, 2, 3, 8, 15])
+        let countBaseDecoder = SwiftVlcDecoder(bitLengths: [1, 1, 1, 1])
+        let countDecoder = SwiftVlcDecoder(bitLengths: [0, 0, 1, 2, 10])
+        let distanceBaseDecoder = SwiftVlcDecoder(bitLengths: [1, 1])
+        let distanceDecoder = SwiftVlcDecoder(bitLengths: [5, 8, 12])
+        
+        let totalSize = rawSize + safetyOffset
+        var rawData = [UInt8](repeating: 0, count: totalSize + 1024)
+        var outputOffset = totalSize
+        
+        func writeByte(_ val: UInt8) {
+            guard outputOffset > 0 else { return }
+            outputOffset -= 1
+            rawData[outputOffset] = val
+        }
+        
+        func copy(distance: Int, count: Int) {
+            guard distance > 0 && outputOffset >= count else {
+                hasError = true
+                return
+            }
+            for _ in 0..<count {
+                outputOffset -= 1
+                let srcIdx = outputOffset + distance
+                guard srcIdx < rawData.count else {
+                    hasError = true
+                    return
+                }
+                rawData[outputOffset] = rawData[srcIdx]
+            }
+        }
+        
+        while outputOffset > safetyOffset && !hasError {
+            if readBits(count: 1) != 0 {
+                guard let val = litVlcDecoderNew.decodeCascade(bitReader: readBits) else {
+                    return nil
+                }
+                let litLength = Int(val + 1)
+                for _ in 0..<litLength {
+                    writeByte(readByte())
+                }
+            }
+            
+            if outputOffset <= safetyOffset || hasError { break }
+            
+            guard let countBaseVal = countBaseDecoder.decodeCascade(bitReader: readBits) else {
+                return nil
+            }
+            let count = Int(countDecoder.decode(base: Int(countBaseVal), bitReader: readBits) + 2)
+            
+            var distance = 0
+            if count == 2 {
+                if readBits(count: 1) != 0 {
+                    distance = Int(readBits(count: 9) + 0x40)
+                } else {
+                    distance = Int(readBits(count: 6))
+                }
+                distance += count
+            } else {
+                guard var distanceBase = distanceBaseDecoder.decodeCascade(bitReader: readBits) else {
+                    return nil
+                }
+                if distanceBase < 2 {
+                    distanceBase ^= 1
+                }
+                distance = Int(distanceDecoder.decode(base: Int(distanceBase), bitReader: readBits))
+                distance += count
+            }
+            copy(distance: distance, count: count)
+        }
+        
+        if hasError { return nil }
+        
+        let decompressedProgram = Data(rawData[safetyOffset..<(safetyOffset + rawSize)])
+        return decompressedProgram
     }
 }

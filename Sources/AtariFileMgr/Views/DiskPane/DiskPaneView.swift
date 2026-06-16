@@ -467,7 +467,7 @@ struct DiskPaneView: View {
             return
         }
         
-        if format.name.contains("Pack-Ice") && !format.name.contains("Executable") {
+        if format.name.contains("Pack-Ice") {
             do {
                 let packedData = try fs.readFile(entry)
                 if let decompressed = SwiftPackIce.decompress(data: packedData) {

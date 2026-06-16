@@ -251,15 +251,14 @@ final class DiskPaneViewModel: ObservableObject {
                 try await extractEntry(sub, to: destURL)
             }
         } else {
-            // Standard file write
-            let data = try fs.readFile(entry)
+            let data = try getFileDataForExport(entry)
             try data.write(to: destURL)
         }
     }
 
     /// Prepare a temporary local URL for dragging a disk entry out of the app.
     func prepareDragURL(for entry: GEMDOSEntry) -> URL? {
-        guard let fs else { return nil }
+        guard self.fs != nil else { return nil }
         do {
             let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent(entry.id.uuidString)
@@ -273,7 +272,7 @@ final class DiskPaneViewModel: ObservableObject {
                 try FileManager.default.createDirectory(at: tempURL, withIntermediateDirectories: true)
                 try exportDirectory(entry, to: tempURL)
             } else {
-                let data = try fs.readFile(entry)
+                let data = try getFileDataForExport(entry)
                 try data.write(to: tempURL)
             }
             return tempURL
@@ -294,6 +293,19 @@ final class DiskPaneViewModel: ObservableObject {
         return urls
     }
 
+    private func getFileDataForExport(_ entry: GEMDOSEntry) throws -> Data {
+        guard let fs else { throw NSError(domain: "AtariFileMgr", code: 1, userInfo: [NSLocalizedDescriptionKey: "No filesystem"]) }
+        var data = try fs.readFile(entry)
+        if let prefix = try? fs.readFilePrefix(entry, maxLength: 512),
+           let format = AtariCompressionDetector.detect(data: prefix),
+           format.name.contains("Pack-Ice") {
+            if let decompressed = SwiftPackIce.decompress(data: data) {
+                data = decompressed
+            }
+        }
+        return data
+    }
+
     /// Recursively export a directory entry from the GEMDOS filesystem to a local URL.
     private func exportDirectory(_ entry: GEMDOSEntry, to localDir: URL) throws {
         guard let fs else { return }
@@ -304,7 +316,7 @@ final class DiskPaneViewModel: ObservableObject {
                 try FileManager.default.createDirectory(at: destURL, withIntermediateDirectories: true)
                 try exportDirectory(sub, to: destURL)
             } else {
-                let data = try fs.readFile(sub)
+                let data = try getFileDataForExport(sub)
                 try data.write(to: destURL)
             }
         }

@@ -115,7 +115,7 @@ struct AtariSTImageViewerSheet: View {
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .background(ImageGridBackground())
+                    .background(Color.black)
                 } else if hasFailed {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -148,7 +148,7 @@ struct AtariSTImageViewerSheet: View {
             Divider()
 
             // Footer controls and color blocks
-            HStack(alignment: .bottom) {
+            HStack(alignment: .center) {
                 if isTextFile {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Terminal Theme")
@@ -198,23 +198,22 @@ struct AtariSTImageViewerSheet: View {
 
                     Spacer()
 
-                    if let decoded = decodedImage {
-                        Button(action: {
-                            saveAsPNG(decoded: decoded)
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "square.and.arrow.down")
-                                Text("Save as PNG...")
+                    // Action controls grouped horizontally on the right
+                    HStack(spacing: 12) {
+                        if let decoded = decodedImage {
+                            Button(action: {
+                                saveAsPNG(decoded: decoded)
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "square.and.arrow.down")
+                                    Text("Save as PNG...")
+                                }
                             }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
                         }
-                        .buttonStyle(.bordered)
-                    }
 
-                    Spacer()
-
-                    // Display options
-                    if decodedImage != nil {
-                        VStack(alignment: .trailing, spacing: 6) {
+                        if decodedImage != nil {
                             Picker("", selection: $isFitToWindow) {
                                 Text("Scale to Fit").tag(true)
                                 Text("Custom Zoom").tag(false)
@@ -231,7 +230,7 @@ struct AtariSTImageViewerSheet: View {
                                     Slider(value: $zoomScale, in: 1...8, step: 1)
                                         .frame(width: 80)
                                     Text("\(Int(zoomScale))x")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
                                         .frame(width: 24, alignment: .trailing)
                                 }
                             }
@@ -243,6 +242,7 @@ struct AtariSTImageViewerSheet: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 500, idealWidth: 700, maxWidth: .infinity, minHeight: 420, idealHeight: 550, maxHeight: .infinity)
+        .background(SheetWindowAccessor())
         .onAppear {
             if isTextFile {
                 decodeTextFile()
@@ -328,3 +328,18 @@ struct ImageGridBackground: View {
         }
     }
 }
+
+struct SheetWindowAccessor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                window.styleMask.insert(.resizable)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
