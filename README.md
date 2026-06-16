@@ -30,6 +30,18 @@ This project is open source. Feel free to contribute!
 
 ## Version History
 
+**Version 1.4**
+- Add option to save viewed images directly to `.png` files via native Save dialog
+
+**Version 1.3**
+- Add Atari ST Graphics Viewer supporting DEGAS (`.PI1`-`.PI3`, `.PC1`-`.PC3`), NEOchrome (`.NEO`), STAD (`.PAC`), and Spectrum 512 (`.SPU`) formats
+- Add ASCII text file viewer for source code (`.c`, `.h`, `.asm`, `.pas`, `.bas`, etc.) and documentation formats
+- Double-click to view files directly, and eye-icon view buttons on toolbars
+
+**Version 1.2**
+- Add read-only support for Pasti `.stx` disk images
+- Add native Swift Pack-Ice decompressor to transparently decrunch image and text files
+
 **Version 1.1**
 - Aligned split view layout and header dividers dynamically
 - Standardized vertical height of macOS and Atari ST path navigation bars

@@ -75,6 +75,35 @@ enum SavePanel {
             }
         }
     }
+
+    /// Opens a modal NSSavePanel to save a PNG image.
+    @MainActor
+    static func showPNG(
+        suggestedName: String,
+        completion: @escaping (URL?) -> Void
+    ) {
+        let panel = NSSavePanel()
+        panel.title = "Save Decoded Image As..."
+        panel.nameFieldLabel = "Save As:"
+        
+        let baseName = (suggestedName as NSString).deletingPathExtension
+        panel.nameFieldStringValue = baseName + ".png"
+        
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        
+        panel.allowedContentTypes = [UTType.png]
+        
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window) { response in
+                completion(response == .OK ? panel.url : nil)
+            }
+        } else {
+            panel.begin { response in
+                completion(response == .OK ? panel.url : nil)
+            }
+        }
+    }
 }
 
 // MARK: - FormatSelectorTarget

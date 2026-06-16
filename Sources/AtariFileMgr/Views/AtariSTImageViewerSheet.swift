@@ -2,6 +2,8 @@
 // SwiftUI preview modal for retro Atari ST graphic files.
 
 import SwiftUI
+import ImageIO
+import UniformTypeIdentifiers
 
 struct AtariSTImageViewerSheet: View {
     @Binding var isPresented: Bool
@@ -12,6 +14,8 @@ struct AtariSTImageViewerSheet: View {
     @State private var zoomScale: CGFloat = 2.0
     @State private var isFitToWindow: Bool = true
     @State private var hasFailed = false
+    @State private var errorMessage: String? = nil
+    @State private var showErrorAlert = false
 
     @State private var textContents: String = ""
     @State private var textTheme: TextTheme = .greenScreen
@@ -194,6 +198,17 @@ struct AtariSTImageViewerSheet: View {
 
                     Spacer()
 
+                    if let decoded = decodedImage {
+                        Button(action: {
+                            saveAsPNG(decoded: decoded)
+                        }) {
+                            Label("Save as PNG...", systemImage: "square.and.arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Spacer()
+
                     // Display options
                     if decodedImage != nil {
                         VStack(alignment: .trailing, spacing: 6) {
@@ -226,11 +241,18 @@ struct AtariSTImageViewerSheet: View {
         }
         .frame(minWidth: 500, minHeight: 420)
         .onAppear {
-        if isTextFile {
-            decodeTextFile()
-        } else {
-            decodeImageFile()
+            if isTextFile {
+                decodeTextFile()
+            } else {
+                decodeImageFile()
+            }
         }
+        .alert(isPresented: $showErrorAlert) {
+            Alert(
+                title: Text("Save Failed"),
+                message: Text(errorMessage ?? "An unknown error occurred while saving the image."),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 
@@ -261,6 +283,24 @@ struct AtariSTImageViewerSheet: View {
         
         let text = String(data: targetData, encoding: .utf8) ?? String(data: targetData, encoding: .isoLatin1) ?? "Undecodable text format."
         self.textContents = text
+    }
+
+    private func saveAsPNG(decoded: DecodedAtariSTImage) {
+        SavePanel.showPNG(suggestedName: filename) { url in
+            guard let url = url else { return }
+            
+            guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+                self.errorMessage = "Could not create image destination writer for \(url.lastPathComponent)."
+                self.showErrorAlert = true
+                return
+            }
+            
+            CGImageDestinationAddImage(destination, decoded.cgImage, nil)
+            if !CGImageDestinationFinalize(destination) {
+                self.errorMessage = "Failed to finalize and write PNG data to disk."
+                self.showErrorAlert = true
+            }
+        }
     }
 }
 
