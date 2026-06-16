@@ -23,25 +23,23 @@ public final class AtariCompressionDetector {
             let searchData = data.prefix(searchLimit)
             
             // Check for Pack-Ice decruncher string "Pack-Ice"
-            if let headerString = String(data: searchData.prefix(min(128, searchData.count)), encoding: .ascii) {
-                if headerString.contains("Pack-Ice") {
-                    return CompressionFormat(name: "Pack-Ice Packed Executable", isCrunchedFile: true, isArchive: false)
-                }
-                if headerString.contains("ATOM") {
-                    return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
-                }
-                if headerString.contains("ATM5") {
-                    return CompressionFormat(name: "Atomik Cruncher v3.5+ Executable", isCrunchedFile: true, isArchive: false)
-                }
-                if headerString.contains("ATM3") {
-                    return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
-                }
-                if headerString.contains("ATM8") {
-                    return CompressionFormat(name: "Atomik Cruncher Executable (ATM8)", isCrunchedFile: true, isArchive: false)
-                }
-                if headerString.contains("ATM9") {
-                    return CompressionFormat(name: "Atomik Cruncher Executable (ATM9)", isCrunchedFile: true, isArchive: false)
-                }
+            if searchData.range(of: Data("Pack-Ice".utf8)) != nil {
+                return CompressionFormat(name: "Pack-Ice Packed Executable", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: Data("ATOM".utf8)) != nil {
+                return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: Data("ATM5".utf8)) != nil {
+                return CompressionFormat(name: "Atomik Cruncher v3.5+ Executable", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: Data("ATM3".utf8)) != nil {
+                return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: Data("ATM8".utf8)) != nil {
+                return CompressionFormat(name: "Atomik Cruncher Executable (ATM8)", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: Data("ATM9".utf8)) != nil {
+                return CompressionFormat(name: "Atomik Cruncher Executable (ATM9)", isCrunchedFile: true, isArchive: false)
             }
             
             // RNC
