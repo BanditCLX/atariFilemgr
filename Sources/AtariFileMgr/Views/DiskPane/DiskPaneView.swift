@@ -224,6 +224,17 @@ struct DiskPaneView: View {
                                 tempURL: vm.prepareDragURL(for: entry) ?? URL(fileURLWithPath: "")
                             ))
                             .contextMenu {
+                                if isSupportedImage(entry.displayName) {
+                                    Button {
+                                        if let data = try? appVM.filesystem?.readFile(entry) {
+                                            appVM.viewImage(name: entry.displayName, data: data)
+                                        }
+                                    } label: {
+                                        Label("View Image", systemImage: "eye")
+                                    }
+                                    Divider()
+                                }
+
                                 Button {
                                     let destDir = localVM.currentURL
                                     let targets = vm.selectedEntries.contains(entry) ? vm.selectedEntries : [entry]
@@ -399,6 +410,13 @@ struct DiskPaneView: View {
         }
 
         group.notify(queue: .main) { completion(urls) }
+    }
+
+    private func isSupportedImage(_ filename: String) -> Bool {
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
+               ext == "pc1" || ext == "pc2" || ext == "pc3" ||
+               ext == "neo" || ext == "pac" || ext == "spu"
     }
 }
 

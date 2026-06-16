@@ -174,6 +174,17 @@ struct LocalPaneView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
                             .contextMenu {
+                                if isSupportedImage(item.name) {
+                                    Button {
+                                        if let data = try? Data(contentsOf: item.url) {
+                                            appVM.viewImage(name: item.name, data: data)
+                                        }
+                                    } label: {
+                                        Label("View Image", systemImage: "eye")
+                                    }
+                                    Divider()
+                                }
+
                                 Button {
                                     let targets = vm.selectedItems.contains(item) ? vm.selectedItems : [item]
                                     Task {
@@ -366,6 +377,13 @@ struct LocalPaneView: View {
         case "downloads": return "arrow.down.circle.fill"
         default:          return "folder.fill"
         }
+    }
+
+    private func isSupportedImage(_ filename: String) -> Bool {
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
+               ext == "pc1" || ext == "pc2" || ext == "pc3" ||
+               ext == "neo" || ext == "pac" || ext == "spu"
     }
 }
 

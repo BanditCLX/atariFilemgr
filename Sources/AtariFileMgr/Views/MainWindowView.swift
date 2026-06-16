@@ -51,6 +51,11 @@ struct MainWindowView: View {
         .background(WindowAccessor())
         .sheet(isPresented: $showNewDisk)   { NewDiskSheetView(isPresented: $showNewDisk).environmentObject(appVM) }
         .sheet(isPresented: $showProperties) { propertiesSheet }
+        .sheet(isPresented: $appVM.showViewer) {
+            if let name = appVM.viewerImageName, let data = appVM.viewerImageData {
+                AtariSTImageViewerSheet(isPresented: $appVM.showViewer, filename: name, fileData: data)
+            }
+        }
         .alert("Error", isPresented: $appVM.showError) {
             Button("OK") { appVM.showError = false }
         } message: {

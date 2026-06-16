@@ -17,6 +17,18 @@ final class AppViewModel: ObservableObject {
     @Published var showError: Bool = false
     @Published var recentFiles: [URL] = []
     @Published var isLoading: Bool = false
+    
+    // MARK: - Image Viewer State
+    @Published var showViewer: Bool = false
+    @Published var viewerImageName: String? = nil
+    @Published var viewerImageData: Data? = nil
+
+    func viewImage(name: String, data: Data) {
+        self.viewerImageName = name
+        self.viewerImageData = data
+        self.showViewer = true
+    }
+
 
     // MARK: - Undo/Redo (simple command-based)
 
