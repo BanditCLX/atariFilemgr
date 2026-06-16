@@ -106,6 +106,7 @@ enum DiskImageFormat {
     case msa
     case dim
     case ahd
+    case stx
 
     static func detect(url: URL) -> DiskImageFormat? {
         switch url.pathExtension.lowercased() {
@@ -113,6 +114,7 @@ enum DiskImageFormat {
         case "msa": return .msa
         case "dim": return .dim
         case "ahd": return .ahd
+        case "stx": return .stx
         default:    return nil
         }
     }

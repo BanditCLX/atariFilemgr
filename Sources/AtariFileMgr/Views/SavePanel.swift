@@ -118,6 +118,7 @@ enum OpenPanel {
         if let msa = UTType(filenameExtension: "msa") { types.append(msa) }
         if let dim = UTType(filenameExtension: "dim") { types.append(dim) }
         if let ahd = UTType(filenameExtension: "ahd") { types.append(ahd) }
+        if let stx = UTType(filenameExtension: "stx") { types.append(stx) }
         if types.isEmpty { types = [.data] }
         panel.allowedContentTypes = types
 

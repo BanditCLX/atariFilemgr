@@ -53,7 +53,7 @@ final class AppViewModel: ObservableObject {
 
             do {
                 let ext = url.pathExtension.lowercased()
-                let isReadOnlyFormat = (ext == "dim" || ext == "ahd")
+                let isReadOnlyFormat = (ext == "dim" || ext == "ahd" || ext == "stx")
 
                 let img: any DiskImage
                 switch DiskImageFormat.detect(url: url) {
@@ -61,6 +61,8 @@ final class AppViewModel: ObservableObject {
                     img = try STDiskImage.load(from: url)
                 case .msa:
                     img = try MSADiskImage.load(from: url)
+                case .stx:
+                    img = try STXDiskImage.load(from: url)
                 case nil:
                     throw DiskImageError.invalidFormat("Unsupported file extension: \(url.pathExtension)")
                 }
