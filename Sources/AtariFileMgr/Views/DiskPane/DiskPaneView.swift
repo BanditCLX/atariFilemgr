@@ -429,12 +429,32 @@ struct DiskPaneView: View {
     }
 
     private func detectCompression(for entry: GEMDOSEntry) -> CompressionFormat? {
-        guard entry.isFile else { return nil }
         guard let fs = appVM.filesystem else { return nil }
-        if let prefixData = try? fs.readFilePrefix(entry, maxLength: 64) {
-            return AtariCompressionDetector.detect(data: prefixData)
+        
+        if entry.isDirectory {
+            guard let allFiles = try? fs.listAllFilesRecursively(inDirectoryCluster: entry.startCluster, currentPath: "") else { return nil }
+            var packedFiles: [String] = []
+            for (path, fileEntry) in allFiles {
+                if let prefixData = try? fs.readFilePrefix(fileEntry, maxLength: 64),
+                   let format = AtariCompressionDetector.detect(data: prefixData) {
+                    packedFiles.append("\(path) (\(format.name))")
+                }
+            }
+            if !packedFiles.isEmpty {
+                return CompressionFormat(
+                    name: "Directory contains packed files",
+                    isCrunchedFile: false,
+                    isArchive: true,
+                    filesInside: packedFiles
+                )
+            }
+            return nil
+        } else {
+            if let prefixData = try? fs.readFilePrefix(entry, maxLength: 64) {
+                return AtariCompressionDetector.detect(data: prefixData)
+            }
+            return nil
         }
-        return nil
     }
 
     private func extractAndSave(entry: GEMDOSEntry) {

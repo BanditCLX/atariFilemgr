@@ -98,19 +98,21 @@ struct DiskFileRowView: View {
                                     .frame(maxHeight: 120)
                                 }
                                 
-                                Divider()
-                                
-                                Button(action: {
-                                    showCompressionPopover = false
-                                    onExtract?()
-                                }) {
-                                    HStack {
-                                        Image(systemName: "square.and.arrow.down")
-                                        Text(format.name.contains("Pack-Ice") ? "Extract File..." : "Download File...")
+                                if !entry.isDirectory {
+                                    Divider()
+                                    
+                                    Button(action: {
+                                        showCompressionPopover = false
+                                        onExtract?()
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "square.and.arrow.down")
+                                            Text(format.name.contains("Pack-Ice") ? "Extract File..." : "Download File...")
+                                        }
+                                        .font(.system(size: 11))
                                     }
-                                    .font(.system(size: 11))
+                                    .buttonStyle(.borderedProminent)
                                 }
-                                .buttonStyle(.borderedProminent)
                             }
                             .padding(10)
                             .frame(width: 220)

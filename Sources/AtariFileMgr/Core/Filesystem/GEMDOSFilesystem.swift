@@ -242,6 +242,25 @@ final class GEMDOSFilesystem {
         try delete(entry)
     }
 
+    // MARK: - Recursive helper
+
+    /// Recursively find all file entries in a directory.
+    func listAllFilesRecursively(inDirectoryCluster cluster: UInt16, currentPath: String = "") throws -> [(path: String, entry: GEMDOSEntry)] {
+        let entries = try (cluster == 0 ? listRootDirectory() : listDirectory(cluster: cluster))
+        var files: [(path: String, entry: GEMDOSEntry)] = []
+        for entry in entries {
+            let path = currentPath.isEmpty ? entry.displayName : "\(currentPath)/\(entry.displayName)"
+            if entry.isDirectory {
+                if entry.displayName != "." && entry.displayName != ".." {
+                    files.append(contentsOf: try listAllFilesRecursively(inDirectoryCluster: entry.startCluster, currentPath: path))
+                }
+            } else {
+                files.append((path, entry))
+            }
+        }
+        return files
+    }
+
     // MARK: - Cluster I/O helpers
 
     /// Read the entire cluster chain for a given starting cluster.
