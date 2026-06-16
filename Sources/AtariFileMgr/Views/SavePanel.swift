@@ -121,7 +121,9 @@ enum SavePanel {
         
         let ext = (suggestedName as NSString).pathExtension
         if !ext.isEmpty, let type = UTType(filenameExtension: ext) {
-            panel.allowedContentTypes = [type]
+            if !type.identifier.hasPrefix("dyn.") {
+                panel.allowedContentTypes = [type]
+            }
         }
         
         if let window = NSApp.keyWindow {
