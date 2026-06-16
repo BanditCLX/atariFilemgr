@@ -30,6 +30,11 @@ This project is open source. Feel free to contribute!
 
 ## Version History
 
+**Version 1.5**
+- Add Atari ST compression and executable packer detection (Pack-Ice, Atomik, Rob Northen, StoneCracker, etc.)
+- Parse archive structures of LZH/LHA, ARC, and ZIP files to list contained files in popover tooltips
+- Expose extraction and download options with native decrunching support for Pack-Ice files
+
 **Version 1.4**
 - Add option to save viewed images directly to `.png` files via native Save dialog
 
