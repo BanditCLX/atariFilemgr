@@ -435,7 +435,7 @@ struct DiskPaneView: View {
             guard let allFiles = try? fs.listAllFilesRecursively(inDirectoryCluster: entry.startCluster, currentPath: "") else { return nil }
             var packedFiles: [String] = []
             for (path, fileEntry) in allFiles {
-                if let prefixData = try? fs.readFilePrefix(fileEntry, maxLength: 64),
+                if let prefixData = try? fs.readFilePrefix(fileEntry, maxLength: 512),
                    let format = AtariCompressionDetector.detect(data: prefixData) {
                     packedFiles.append("\(path) (\(format.name))")
                 }
@@ -450,7 +450,7 @@ struct DiskPaneView: View {
             }
             return nil
         } else {
-            if let prefixData = try? fs.readFilePrefix(entry, maxLength: 64) {
+            if let prefixData = try? fs.readFilePrefix(entry, maxLength: 512) {
                 return AtariCompressionDetector.detect(data: prefixData)
             }
             return nil
@@ -460,14 +460,14 @@ struct DiskPaneView: View {
     private func extractAndSave(entry: GEMDOSEntry) {
         guard let fs = appVM.filesystem else { return }
         
-        guard let prefixData = try? fs.readFilePrefix(entry, maxLength: 64),
+        guard let prefixData = try? fs.readFilePrefix(entry, maxLength: 512),
               let format = AtariCompressionDetector.detect(data: prefixData)
         else {
             exportRawFile(entry: entry)
             return
         }
         
-        if format.name.contains("Pack-Ice") {
+        if format.name.contains("Pack-Ice") && !format.name.contains("Executable") {
             do {
                 let packedData = try fs.readFile(entry)
                 if let decompressed = SwiftPackIce.decompress(data: packedData) {

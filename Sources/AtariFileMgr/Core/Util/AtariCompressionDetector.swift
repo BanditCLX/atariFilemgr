@@ -17,6 +17,64 @@ public final class AtariCompressionDetector {
         
         let sig32 = (UInt32(data[0]) << 24) | (UInt32(data[1]) << 16) | (UInt32(data[2]) << 8) | UInt32(data[3])
         
+        // 0. GEMDOS Executable checks for decruncher stubs / packed executables
+        if data.count >= 16 && (data[0] == 0x60 && data[1] == 0x1A) {
+            let searchLimit = min(data.count, 512)
+            let searchData = data.prefix(searchLimit)
+            
+            // Check for Pack-Ice decruncher string "Pack-Ice"
+            if let headerString = String(data: searchData.prefix(min(128, searchData.count)), encoding: .ascii) {
+                if headerString.contains("Pack-Ice") {
+                    return CompressionFormat(name: "Pack-Ice Packed Executable", isCrunchedFile: true, isArchive: false)
+                }
+                if headerString.contains("ATOM") {
+                    return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
+                }
+                if headerString.contains("ATM5") {
+                    return CompressionFormat(name: "Atomik Cruncher v3.5+ Executable", isCrunchedFile: true, isArchive: false)
+                }
+                if headerString.contains("ATM3") {
+                    return CompressionFormat(name: "Atomik Cruncher v3.x Executable", isCrunchedFile: true, isArchive: false)
+                }
+                if headerString.contains("ATM8") {
+                    return CompressionFormat(name: "Atomik Cruncher Executable (ATM8)", isCrunchedFile: true, isArchive: false)
+                }
+                if headerString.contains("ATM9") {
+                    return CompressionFormat(name: "Atomik Cruncher Executable (ATM9)", isCrunchedFile: true, isArchive: false)
+                }
+            }
+            
+            // RNC
+            let rnc1 = Data([0x52, 0x4e, 0x43, 0x01]) // "RNC\x01"
+            let rnc2 = Data([0x52, 0x4e, 0x43, 0x02]) // "RNC\x02"
+            if searchData.range(of: rnc1) != nil {
+                return CompressionFormat(name: "Rob Northen Executable (Method 1)", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: rnc2) != nil {
+                return CompressionFormat(name: "Rob Northen Executable (Method 2)", isCrunchedFile: true, isArchive: false)
+            }
+            
+            // StoneCracker
+            let s300 = Data([0x53, 0x33, 0x30, 0x30]) // "S300"
+            let s400 = Data([0x53, 0x34, 0x30, 0x30]) // "S400"
+            let s404 = Data([0x53, 0x34, 0x30, 0x34]) // "S404"
+            let ays = Data([0x41, 0x59, 0x53, 0x21])  // "AYS!"
+            let zulu = Data([0x5a, 0x55, 0x4c, 0x55]) // "ZULU"
+            
+            if searchData.range(of: s300) != nil {
+                return CompressionFormat(name: "StoneCracker Executable (S300)", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: s400) != nil || searchData.range(of: s404) != nil {
+                return CompressionFormat(name: "StoneCracker Executable (S400+)", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: ays) != nil {
+                return CompressionFormat(name: "StoneCracker Executable (AYS!)", isCrunchedFile: true, isArchive: false)
+            }
+            if searchData.range(of: zulu) != nil {
+                return CompressionFormat(name: "StoneCracker Executable (ZULU)", isCrunchedFile: true, isArchive: false)
+            }
+        }
+        
         // 1. Pack-Ice (ICE!)
         if (sig32 & 0xFFFFFF00) == 0x49636500 || sig32 == 0x49434521 {
             return CompressionFormat(name: "Pack-Ice (ICE!)", isCrunchedFile: true, isArchive: false)
