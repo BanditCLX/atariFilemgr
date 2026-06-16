@@ -181,7 +181,7 @@ struct AtariSTImageViewerSheet: View {
                             Text("Palette Colors")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(.secondary)
-                            HStack(spacing: 3) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 3), count: 8), alignment: .leading, spacing: 3) {
                                 ForEach(0..<decoded.palette.count, id: \.self) { idx in
                                     let argb = decoded.palette[idx]
                                     let r = Double((argb >> 16) & 0xFF) / 255.0
@@ -202,7 +202,10 @@ struct AtariSTImageViewerSheet: View {
                         Button(action: {
                             saveAsPNG(decoded: decoded)
                         }) {
-                            Label("Save as PNG...", systemImage: "square.and.arrow.down")
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.and.arrow.down")
+                                Text("Save as PNG...")
+                            }
                         }
                         .buttonStyle(.bordered)
                     }
@@ -239,7 +242,7 @@ struct AtariSTImageViewerSheet: View {
             .padding()
             .background(Color(NSColor.windowBackgroundColor))
         }
-        .frame(minWidth: 500, minHeight: 420)
+        .frame(minWidth: 500, idealWidth: 700, maxWidth: .infinity, minHeight: 420, idealHeight: 550, maxHeight: .infinity)
         .onAppear {
             if isTextFile {
                 decodeTextFile()
