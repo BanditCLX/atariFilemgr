@@ -135,7 +135,7 @@ public final class AtariCompressionDetector {
         // 8. Standard Archive Formats (LZH, ARC, ZIP, ZOO)
         // LZH/LHA signature starts at offset 2 (e.g. "-lh0-", "-lh5-", etc.)
         if data.count >= 7 {
-            let offset2Sig = String(data: data[2..<7], encoding: .ascii) ?? ""
+            let offset2Sig = String(decoding: data[2..<7], as: UTF8.self)
             if offset2Sig.hasPrefix("-lh") || offset2Sig.hasPrefix("-lz") {
                 let files = parseLzhFilenames(data: data)
                 return CompressionFormat(name: "LZH/LHA Archive", isCrunchedFile: false, isArchive: true, filesInside: files)
@@ -161,9 +161,9 @@ public final class AtariCompressionDetector {
         
         return nil
     }
-
+ 
     // MARK: - Archive Parsers
-
+ 
     private static func parseZipFilenames(data: Data) -> [String] {
         var filenames: [String] = []
         var offset = 0
@@ -176,7 +176,7 @@ public final class AtariCompressionDetector {
                 
                 if offset + 30 + nameLen <= data.count {
                     let nameData = data[(offset+30)..<(offset+30+nameLen)]
-                    if let name = String(data: nameData, encoding: .utf8) ?? String(data: nameData, encoding: .ascii) {
+                    if let name = String(data: nameData, encoding: .utf8) ?? String(data: nameData, encoding: .isoLatin1) {
                         if !name.hasSuffix("/") {
                             filenames.append(name)
                         }
@@ -189,7 +189,7 @@ public final class AtariCompressionDetector {
         }
         return filenames
     }
-
+ 
     private static func parseLzhFilenames(data: Data) -> [String] {
         var filenames: [String] = []
         var offset = 0
@@ -198,7 +198,7 @@ public final class AtariCompressionDetector {
             if headerSize == 0 { break } // End of archive
             
             let methodData = data[(offset+2)..<min(offset+7, data.count)]
-            let method = String(data: methodData, encoding: .ascii) ?? ""
+            let method = String(decoding: methodData, as: UTF8.self)
             if !method.hasPrefix("-lh") && !method.hasPrefix("-lz") {
                 break // Invalid LZH method
             }
@@ -208,7 +208,7 @@ public final class AtariCompressionDetector {
             
             if offset + 22 + nameLen <= data.count {
                 let nameData = data[(offset+22)..<(offset+22+nameLen)]
-                if let name = String(data: nameData, encoding: .utf8) ?? String(data: nameData, encoding: .ascii) {
+                if let name = String(data: nameData, encoding: .utf8) ?? String(data: nameData, encoding: .isoLatin1) {
                     filenames.append(name)
                 }
             }
@@ -216,7 +216,7 @@ public final class AtariCompressionDetector {
         }
         return filenames
     }
-
+ 
     private static func parseArcFilenames(data: Data) -> [String] {
         var filenames: [String] = []
         var offset = 0
@@ -231,7 +231,7 @@ public final class AtariCompressionDetector {
                 if b == 0 { break }
                 nameBytes.append(b)
             }
-            if let name = String(bytes: nameBytes, encoding: .ascii) {
+            if let name = String(bytes: nameBytes, encoding: .isoLatin1) {
                 filenames.append(name)
             }
             
