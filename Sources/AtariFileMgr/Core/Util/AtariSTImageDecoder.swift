@@ -110,30 +110,40 @@ public final class AtariSTImageDecoder {
     /// Decodes an Atari ST graphics file from binary data.
     /// Supports: DEGAS (.PI1/2/3), DEGAS Elite (.PC1/2/3), NEOchrome (.NEO), STAD (.PAC), and Spectrum 512 (.SPU).
     public static func decode(data: Data, filename: String) -> DecodedAtariSTImage? {
+        var targetData = data
+        if data.count >= 12 {
+            let sig = data.prefix(4)
+            if sig == Data([0x49, 0x63, 0x65, 0x21]) || sig == Data([0x49, 0x43, 0x45, 0x21]) { // "Ice!" or "ICE!"
+                if let decompressed = SwiftPackIce.decompress(data: data) {
+                    targetData = decompressed
+                }
+            }
+        }
+
         let ext = (filename as NSString).pathExtension.lowercased()
 
         if ext == "pi1" || ext == "pi2" || ext == "pi3" {
-            return decodeDegas(data: data)
+            return decodeDegas(data: targetData)
         }
         if ext == "pc1" || ext == "pc2" || ext == "pc3" {
-            return decodeDegasElite(data: data)
+            return decodeDegasElite(data: targetData)
         }
         if ext == "neo" {
-            return decodeNeochrome(data: data)
+            return decodeNeochrome(data: targetData)
         }
-        if ext == "pac" || data.starts(with: [112, 77, 56, 53]) || data.starts(with: [112, 77, 56, 54]) { // "pM85" or "pM86"
-            return decodeSTAD(data: data)
+        if ext == "pac" || targetData.starts(with: [112, 77, 56, 53]) || targetData.starts(with: [112, 77, 56, 54]) { // "pM85" or "pM86"
+            return decodeSTAD(data: targetData)
         }
         if ext == "spu" {
-            return decodeSpectrum512SPU(data: data)
+            return decodeSpectrum512SPU(data: targetData)
         }
 
         // Fallback detection by size or signature
-        if data.count == 32034 {
-            return decodeDegas(data: data)
+        if targetData.count == 32034 {
+            return decodeDegas(data: targetData)
         }
-        if data.starts(with: [112, 77, 56, 53]) || data.starts(with: [112, 77, 56, 54]) {
-            return decodeSTAD(data: data)
+        if targetData.starts(with: [112, 77, 56, 53]) || targetData.starts(with: [112, 77, 56, 54]) {
+            return decodeSTAD(data: targetData)
         }
 
         return nil
@@ -454,5 +464,270 @@ public final class AtariSTImageDecoder {
             shouldInterpolate: false,
             intent: .defaultIntent
         )
+    }
+}
+
+// MARK: - SwiftVlcDecoder & SwiftPackIce (Pack-Ice Decompressor)
+
+fileprivate final class SwiftVlcDecoder {
+    let bitLengths: [Int]
+    var offsets: [UInt32]
+    
+    init(bitLengths: [Int]) {
+        self.bitLengths = bitLengths
+        self.offsets = [UInt32](repeating: 0, count: bitLengths.count)
+        var length: UInt32 = 0
+        for i in 0..<bitLengths.count {
+            offsets[i] = length
+            length += 1 << bitLengths[i]
+        }
+    }
+    
+    func decode(base: Int, bitReader: (Int) -> UInt32) -> UInt32 {
+        return offsets[base] + bitReader(bitLengths[base])
+    }
+    
+    func decodeCascade(bitReader: (Int) -> UInt32) -> UInt32? {
+        for i in 0..<bitLengths.count {
+            let len = bitLengths[i]
+            if len == 0 { return nil }
+            let tmp = bitReader(len)
+            let maxVal = UInt32((1 << len) - 1)
+            if i == bitLengths.count - 1 || tmp != maxVal {
+                return offsets[i] - UInt32(i) + tmp
+            }
+        }
+        return nil
+    }
+}
+
+fileprivate struct SwiftPackIce {
+    static func decompress(data: Data) -> Data? {
+        guard data.count >= 12 else { return nil }
+        
+        let magic = (Int(data[0]) << 24) | (Int(data[1]) << 16) | (Int(data[2]) << 8) | Int(data[3])
+        
+        let packedSize: Int
+        let rawSize: Int
+        let ver: Int
+        
+        if (magic & 0xFFFFFF00) == 0x49636500 { // "Ice..."
+            // ver 0 or 1
+            // Let's check footer
+            let footer = (Int(data[data.count - 4]) << 24) | (Int(data[data.count - 3]) << 16) | (Int(data[data.count - 2]) << 8) | Int(data[data.count - 1])
+            if footer == 0x49636521 { // "Ice!"
+                packedSize = data.count
+                rawSize = (Int(data[data.count - 8]) << 24) | (Int(data[data.count - 7]) << 16) | (Int(data[data.count - 6]) << 8) | Int(data[data.count - 5])
+                ver = 0
+            } else {
+                packedSize = (Int(data[4]) << 24) | (Int(data[5]) << 16) | (Int(data[6]) << 8) | Int(data[7])
+                rawSize = (Int(data[8]) << 24) | (Int(data[9]) << 16) | (Int(data[10]) << 8) | Int(data[11])
+                ver = 1
+            }
+        } else if magic == 0x49434521 { // "ICE!"
+            // ver 2
+            packedSize = (Int(data[4]) << 24) | (Int(data[5]) << 16) | (Int(data[6]) << 8) | Int(data[7])
+            rawSize = (Int(data[8]) << 24) | (Int(data[9]) << 16) | (Int(data[10]) << 8) | Int(data[11])
+            ver = 2
+        } else {
+            return nil
+        }
+        
+        guard rawSize > 0 && packedSize <= data.count else { return nil }
+        
+        // Let's implement the two passes for ver 1 (first try useBytes=false, then try useBytes=true)
+        if ver == 1 {
+            if let decomp = decompressInternal(data: data, packedSize: packedSize, rawSize: rawSize, ver: ver, useBytes: false) {
+                return decomp
+            }
+            if let decomp = decompressInternal(data: data, packedSize: packedSize, rawSize: rawSize, ver: ver, useBytes: true) {
+                return decomp
+            }
+        } else if ver == 2 {
+            return decompressInternal(data: data, packedSize: packedSize, rawSize: rawSize, ver: ver, useBytes: true)
+        } else {
+            // ver 0
+            return decompressInternal(data: data, packedSize: packedSize, rawSize: rawSize, ver: ver, useBytes: false)
+        }
+        
+        return nil
+    }
+    
+    private static func decompressInternal(data: Data, packedSize: Int, rawSize: Int, ver: Int, useBytes: Bool) -> Data? {
+        // InputStream setup
+        let startOffset = ver != 0 ? 12 : 0
+        let endOffset = packedSize - (ver != 0 ? 0 : 8)
+        
+        var currentOffset = endOffset
+        
+        func readByte() -> UInt8 {
+            guard currentOffset > startOffset else { return 0 }
+            currentOffset -= 1
+            return data[currentOffset]
+        }
+        
+        func readBE32() -> UInt32 {
+            let b0 = UInt32(readByte())
+            let b1 = UInt32(readByte())
+            let b2 = UInt32(readByte())
+            let b3 = UInt32(readByte())
+            return (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
+        }
+        
+        // MSBBitReader setup
+        var bufContent: UInt32 = 0
+        var bufLength: UInt8 = 0
+        
+        func readBits(count: Int) -> UInt32 {
+            var ret: UInt32 = 0
+            var remaining = count
+            while remaining > 0 {
+                if bufLength == 0 {
+                    if useBytes {
+                        bufContent = UInt32(readByte())
+                        bufLength = 8
+                    } else {
+                        bufContent = readBE32()
+                        bufLength = 32
+                    }
+                }
+                let maxCount = min(UInt8(remaining), bufLength)
+                bufLength -= maxCount
+                let shift = bufLength
+                let mask = (1 << maxCount) - 1
+                ret = (ret << maxCount) | ((bufContent >> shift) & UInt32(mask))
+                remaining -= Int(maxCount)
+            }
+            return ret
+        }
+        
+        // Anchor bit handling
+        let initialVal = useBytes ? UInt32(readByte()) : readBE32()
+        var tmp = initialVal
+        var count: UInt32 = 0
+        while tmp != 0 {
+            tmp <<= 1
+            count += 1
+        }
+        if count > 0 {
+            count -= 1
+        }
+        if count > 0 {
+            let shift = 32 - count
+            let bufVal = initialVal >> shift
+            let len = count - (useBytes ? 24 : 0)
+            bufContent = bufVal
+            bufLength = UInt8(len)
+        }
+        
+        // VLC decoders
+        let litVlcDecoderOld = SwiftVlcDecoder(bitLengths: [1, 2, 2, 3, 10])
+        let litVlcDecoderNew = SwiftVlcDecoder(bitLengths: [1, 2, 2, 3, 8, 15])
+        let countBaseDecoder = SwiftVlcDecoder(bitLengths: [1, 1, 1, 1])
+        let countDecoder = SwiftVlcDecoder(bitLengths: [0, 0, 1, 2, 10])
+        let distanceBaseDecoder = SwiftVlcDecoder(bitLengths: [1, 1])
+        let distanceDecoder = SwiftVlcDecoder(bitLengths: [5, 8, 12])
+        
+        var rawData = [UInt8](repeating: 0, count: rawSize + 1024) // pad with extra space
+        var outputOffset = rawSize
+        
+        func writeByte(_ val: UInt8) {
+            guard outputOffset > 0 else { return }
+            outputOffset -= 1
+            rawData[outputOffset] = val
+        }
+        
+        func copy(distance: Int, count: Int) {
+            guard distance > 0 && outputOffset >= count else { return }
+            for _ in 0..<count {
+                outputOffset -= 1
+                rawData[outputOffset] = rawData[outputOffset + distance]
+            }
+        }
+        
+        while outputOffset > 0 {
+            if readBits(count: 1) != 0 {
+                let vlc = ver != 0 ? litVlcDecoderNew : litVlcDecoderOld
+                guard let val = vlc.decodeCascade(bitReader: readBits) else { return nil }
+                let litLength = Int(val + 1)
+                for _ in 0..<litLength {
+                    writeByte(readByte())
+                }
+            }
+            
+            if outputOffset <= 0 { break }
+            
+            guard let countBaseVal = countBaseDecoder.decodeCascade(bitReader: readBits) else { return nil }
+            let count = Int(countDecoder.decode(base: Int(countBaseVal), bitReader: readBits) + 2)
+            
+            var distance = 0
+            if count == 2 {
+                if readBits(count: 1) != 0 {
+                    distance = Int(readBits(count: 9) + 0x40)
+                } else {
+                    distance = Int(readBits(count: 6))
+                }
+                distance += count - (useBytes ? 1 : 0)
+            } else {
+                guard var distanceBase = distanceBaseDecoder.decodeCascade(bitReader: readBits) else { return nil }
+                if distanceBase < 2 {
+                    distanceBase ^= 1
+                }
+                distance = Int(distanceDecoder.decode(base: Int(distanceBase), bitReader: readBits))
+                if useBytes {
+                    if distance != 0 {
+                        distance += count - 1
+                    } else {
+                        distance = 1
+                    }
+                } else {
+                    distance += count
+                }
+            }
+            
+            copy(distance: distance, count: count)
+        }
+        
+        // Picture mode post-processing
+        var availableBits = currentOffset - startOffset
+        if bufLength > 0 {
+            availableBits += Int(bufLength) / 8
+        }
+        
+        if ver != 0 && availableBits > 0 && readBits(count: 1) != 0 {
+            var pictureSize = 32000
+            if ver == 2 {
+                let avail = (currentOffset - startOffset) * 8 + Int(bufLength)
+                if avail >= 17 && readBits(count: 1) != 0 {
+                    pictureSize = Int(readBits(count: 16) * 8 + 8)
+                }
+            }
+            
+            guard rawSize >= pictureSize else { return nil }
+            
+            let start = rawSize - pictureSize
+            // Chunky-to-planar postprocessing
+            for i in stride(from: start, to: rawSize, by: 8) {
+                var values = [UInt16](repeating: 0, count: 4)
+                for j in stride(from: 0, to: 8, by: 2) {
+                    let off = i + 6 - j
+                    let tmpVal0 = UInt16(rawData[off])
+                    let tmpVal1 = UInt16(rawData[off + 1])
+                    var tmp = (tmpVal0 << 8) | tmpVal1
+                    
+                    for k in 0..<16 {
+                        let idx = k & 3
+                        values[idx] = (values[idx] << 1) | (tmp >> 15)
+                        tmp = (tmp << 1) & 0xFFFF
+                    }
+                }
+                for j in 0..<4 {
+                    rawData[i + j * 2] = UInt8(values[j] >> 8)
+                    rawData[i + j * 2 + 1] = UInt8(values[j] & 0xFF)
+                }
+            }
+        }
+        
+        return Data(rawData.prefix(rawSize))
     }
 }
