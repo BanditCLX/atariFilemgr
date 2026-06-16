@@ -180,6 +180,10 @@ struct DiskPaneView: View {
                             DiskFileRowView(
                                 entry: entry,
                                 isSelected: isSelected,
+                                compressionFormat: detectCompression(for: entry),
+                                onExtract: {
+                                    extractAndSave(entry: entry)
+                                },
                                 // Drop macOS files onto this folder
                                 onURLDrop: entry.isDirectory ? { urls in
                                     let isFromLocalSelection = urls.contains { url in
@@ -422,6 +426,65 @@ struct DiskPaneView: View {
         }
 
         group.notify(queue: .main) { completion(urls) }
+    }
+
+    private func detectCompression(for entry: GEMDOSEntry) -> CompressionFormat? {
+        guard entry.isFile else { return nil }
+        guard let fs = appVM.filesystem else { return nil }
+        if let prefixData = try? fs.readFilePrefix(entry, maxLength: 64) {
+            return AtariCompressionDetector.detect(data: prefixData)
+        }
+        return nil
+    }
+
+    private func extractAndSave(entry: GEMDOSEntry) {
+        guard let fs = appVM.filesystem else { return }
+        
+        guard let prefixData = try? fs.readFilePrefix(entry, maxLength: 64),
+              let format = AtariCompressionDetector.detect(data: prefixData)
+        else {
+            exportRawFile(entry: entry)
+            return
+        }
+        
+        if format.name.contains("Pack-Ice") {
+            do {
+                let packedData = try fs.readFile(entry)
+                if let decompressed = SwiftPackIce.decompress(data: packedData) {
+                    SavePanel.showGenericSave(suggestedName: entry.displayName, title: "Extract Pack-Ice File") { url in
+                        guard let url = url else { return }
+                        do {
+                            try decompressed.write(to: url)
+                        } catch {
+                            vm.errorMessage = "Failed to save file: \(error.localizedDescription)"
+                        }
+                    }
+                } else {
+                    vm.errorMessage = "Pack-Ice decompression failed."
+                }
+            } catch {
+                vm.errorMessage = "Failed to read file: \(error.localizedDescription)"
+            }
+        } else {
+            exportRawFile(entry: entry)
+        }
+    }
+
+    private func exportRawFile(entry: GEMDOSEntry) {
+        guard let fs = appVM.filesystem else { return }
+        do {
+            let data = try fs.readFile(entry)
+            SavePanel.showGenericSave(suggestedName: entry.displayName, title: "Export File") { url in
+                guard let url = url else { return }
+                do {
+                    try data.write(to: url)
+                } catch {
+                    vm.errorMessage = "Failed to save file: \(error.localizedDescription)"
+                }
+            }
+        } catch {
+            vm.errorMessage = "Failed to read file: \(error.localizedDescription)"
+        }
     }
 
     private func isSupportedImage(_ filename: String) -> Bool {

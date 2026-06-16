@@ -474,7 +474,7 @@ public final class AtariSTImageDecoder {
 
 // MARK: - SwiftVlcDecoder & SwiftPackIce (Pack-Ice Decompressor)
 
-fileprivate final class SwiftVlcDecoder {
+final class SwiftVlcDecoder {
     let bitLengths: [Int]
     var offsets: [UInt32]
     
@@ -506,7 +506,7 @@ fileprivate final class SwiftVlcDecoder {
     }
 }
 
-fileprivate struct SwiftPackIce {
+struct SwiftPackIce {
     static func decompress(data: Data) -> Data? {
         guard data.count >= 12 else { return nil }
         

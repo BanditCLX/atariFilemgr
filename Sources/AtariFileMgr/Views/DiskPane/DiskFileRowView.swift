@@ -31,6 +31,8 @@ extension UTType {
 struct DiskFileRowView: View {
     let entry: GEMDOSEntry
     let isSelected: Bool
+    let compressionFormat: CompressionFormat?
+    let onExtract: (() -> Void)?
 
     /// Called when macOS URLs are dropped onto this folder
     var onURLDrop: (([URL]) -> Void)?
@@ -39,6 +41,7 @@ struct DiskFileRowView: View {
 
     @State private var isURLTargeted   = false
     @State private var isEntryTargeted = false
+    @State private var showCompressionPopover = false
 
     private var isAnyTarget: Bool { isURLTargeted || isEntryTargeted }
 
@@ -48,10 +51,62 @@ struct DiskFileRowView: View {
                 .frame(width: 16)
                 .foregroundStyle(iconColor)
 
-            Text(entry.displayName)
-                .font(.system(size: 12, design: .monospaced))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                Text(entry.displayName)
+                    .font(.system(size: 12, design: .monospaced))
+                    .lineLimit(1)
+                
+                if let format = compressionFormat {
+                    Image(systemName: "doc.zipper")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                        .help(format.name)
+                        .onTapGesture {
+                            showCompressionPopover = true
+                        }
+                        .onHover { hovering in
+                            showCompressionPopover = hovering
+                        }
+                        .popover(isPresented: $showCompressionPopover, arrowEdge: .top) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(format.name)
+                                    .font(.system(size: 12, weight: .bold))
+                                
+                                if !format.filesInside.isEmpty {
+                                    Text("Archive contains:")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                    ScrollView {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            ForEach(format.filesInside, id: \.self) { file in
+                                                Text("• \(file)")
+                                                    .font(.system(size: 10, design: .monospaced))
+                                            }
+                                        }
+                                    }
+                                    .frame(maxHeight: 120)
+                                }
+                                
+                                Divider()
+                                
+                                Button(action: {
+                                    showCompressionPopover = false
+                                    onExtract?()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "square.and.arrow.down")
+                                        Text(format.name.contains("Pack-Ice") ? "Extract File..." : "Download File...")
+                                    }
+                                    .font(.system(size: 11))
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                            .padding(10)
+                            .frame(width: 220)
+                        }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(attrString)
                 .font(.system(size: 10, design: .monospaced))

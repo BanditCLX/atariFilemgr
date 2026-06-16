@@ -104,6 +104,36 @@ enum SavePanel {
             }
         }
     }
+
+    /// Opens a modal NSSavePanel to save any file with suggested extension.
+    @MainActor
+    static func showGenericSave(
+        suggestedName: String,
+        title: String = "Save File As...",
+        completion: @escaping (URL?) -> Void
+    ) {
+        let panel = NSSavePanel()
+        panel.title = title
+        panel.nameFieldLabel = "Save As:"
+        panel.nameFieldStringValue = suggestedName
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        
+        let ext = (suggestedName as NSString).pathExtension
+        if !ext.isEmpty, let type = UTType(filenameExtension: ext) {
+            panel.allowedContentTypes = [type]
+        }
+        
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window) { response in
+                completion(response == .OK ? panel.url : nil)
+            }
+        } else {
+            panel.begin { response in
+                completion(response == .OK ? panel.url : nil)
+            }
+        }
+    }
 }
 
 // MARK: - FormatSelectorTarget

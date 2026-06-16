@@ -81,6 +81,28 @@ final class GEMDOSFilesystem {
         return raw.prefix(Int(entry.fileSize))
     }
 
+    /// Read up to `maxLength` bytes from the beginning of the file (reads first cluster only).
+    func readFilePrefix(_ entry: GEMDOSEntry, maxLength: Int) throws -> Data {
+        guard entry.isFile else { throw GEMDOSError.notAFile(entry.displayName) }
+        if entry.startCluster < 2 { return Data() }
+        
+        let chain = fat.clusterChain(startingAt: entry.startCluster)
+        guard let firstCluster = chain.first else { return Data() }
+        
+        let sectorsPerCluster = Int(bootSector.sectorsPerCluster)
+        let firstSector = fat.firstSector(of: firstCluster)
+        
+        var result = Data()
+        for s in firstSector ..< firstSector + sectorsPerCluster {
+            result.append(try image.readSector(s))
+            if result.count >= maxLength {
+                break
+            }
+        }
+        let limit = min(Int(entry.fileSize), maxLength)
+        return result.prefix(limit)
+    }
+
     // MARK: - File write (create or overwrite)
 
     /// Write data as a file named `name83` in the directory at `dirCluster`.
