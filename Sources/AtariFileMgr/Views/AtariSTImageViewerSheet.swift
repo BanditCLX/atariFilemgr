@@ -4,6 +4,7 @@
 import SwiftUI
 import ImageIO
 import UniformTypeIdentifiers
+import ObjectiveC
 
 struct AtariSTImageViewerSheet: View {
     @Binding var isPresented: Bool
@@ -65,7 +66,7 @@ struct AtariSTImageViewerSheet: View {
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     } else if hasFailed {
-                        Text("Supported formats: DEGAS, NEOchrome, STAD, Spectrum 512 SPU")
+                        Text("Supported formats: DEGAS, NEOchrome, STAD, Spectrum 512 (SPU/SPC), PhotoChrome (PCS)")
                             .font(.system(size: 11))
                             .foregroundColor(.red)
                     } else {
@@ -329,12 +330,56 @@ struct ImageGridBackground: View {
     }
 }
 
+private var sheetProxyKey: UInt8 = 0
+
+final class SheetWindowDelegateProxy: NSObject, NSWindowDelegate {
+    weak var originalDelegate: NSWindowDelegate?
+
+    init(originalDelegate: NSWindowDelegate?) {
+        self.originalDelegate = originalDelegate
+        super.init()
+    }
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        if super.responds(to: aSelector) {
+            return true
+        }
+        return originalDelegate?.responds(to: aSelector) ?? false
+    }
+
+    override func forwardingTarget(for aSelector: Selector!) -> Any? {
+        if let original = originalDelegate, original.responds(to: aSelector) {
+            return original
+        }
+        return super.forwardingTarget(for: aSelector)
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let currentSize = sender.frame.size
+        let widthChanged = abs(frameSize.width - currentSize.width) > 0.5
+        let heightChanged = abs(frameSize.height - currentSize.height) > 0.5
+        
+        // If only one dimension changed, reject it by returning current size (prevent edge resize)
+        if (widthChanged && !heightChanged) || (heightChanged && !widthChanged) {
+            return currentSize
+        }
+        return originalDelegate?.windowWillResize?(sender, to: frameSize) ?? frameSize
+    }
+}
+
 struct SheetWindowAccessor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
             if let window = view.window {
                 window.styleMask.insert(.resizable)
+                window.minSize = NSSize(width: 500, height: 420)
+                
+                if objc_getAssociatedObject(window, &sheetProxyKey) == nil {
+                    let proxy = SheetWindowDelegateProxy(originalDelegate: window.delegate)
+                    objc_setAssociatedObject(window, &sheetProxyKey, proxy, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                    window.delegate = proxy
+                }
             }
         }
         return view

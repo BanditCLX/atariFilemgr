@@ -73,6 +73,14 @@ public final class AtariCompressionDetector {
             }
         }
         
+        // Spectrum 512 Compressed & PhotoChrome Screen
+        if (sig32 >> 16) == 0x5350 {
+            return CompressionFormat(name: "Spectrum 512 Compressed (SPC)", isCrunchedFile: true, isArchive: false)
+        }
+        if sig32 == 0x014000C8 {
+            return CompressionFormat(name: "PhotoChrome Screen (PCS)", isCrunchedFile: true, isArchive: false)
+        }
+
         // 1. Pack-Ice (ICE!)
         if (sig32 & 0xFFFFFF00) == 0x49636500 || sig32 == 0x49434521 {
             return CompressionFormat(name: "Pack-Ice (ICE!)", isCrunchedFile: true, isArchive: false)

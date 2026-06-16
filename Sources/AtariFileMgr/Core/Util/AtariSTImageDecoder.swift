@@ -142,13 +142,28 @@ public final class AtariSTImageDecoder {
         if ext == "spu" {
             return decodeSpectrum512SPU(data: targetData)
         }
+        if ext == "spc" {
+            return decodeSpectrum512SPC(data: targetData)
+        }
+        if ext == "pcs" {
+            return decodePhotoChromePCS(data: targetData)
+        }
 
         // Fallback detection by size or signature
         if targetData.count == 32034 {
             return decodeDegas(data: targetData)
         }
+        if targetData.count == 51104 {
+            return decodeSpectrum512SPU(data: targetData)
+        }
         if targetData.starts(with: [112, 77, 56, 53]) || targetData.starts(with: [112, 77, 56, 54]) {
             return decodeSTAD(data: targetData)
+        }
+        if targetData.count >= 12 && targetData.readUInt16BE(at: 0) == 0x5350 {
+            return decodeSpectrum512SPC(data: targetData)
+        }
+        if targetData.count >= 6 && targetData.readUInt16BE(at: 0) == 0x0140 && targetData.readUInt16BE(at: 2) == 0x00C8 {
+            return decodePhotoChromePCS(data: targetData)
         }
 
         return nil
@@ -369,6 +384,405 @@ public final class AtariSTImageDecoder {
             return c + 32
         }
         return c
+    }
+
+    // MARK: - Spectrum 512 SPC Decoder
+
+    private static func decodeSpectrum512SPC(data: Data) -> DecodedAtariSTImage? {
+        guard data.count >= 12 else { return nil }
+        
+        let magic = data.readUInt16BE(at: 0)
+        guard magic == 0x5350 else { return nil } // "SP"
+        
+        let dataLen = Int(data.readUInt32BE(at: 4))
+        let colorLen = Int(data.readUInt32BE(at: 8))
+        
+        guard data.count >= 12 + dataLen + colorLen else { return nil }
+        
+        let compressedData = data.subdata(in: 12..<12+dataLen)
+        let compressedColor = data.subdata(in: 12+dataLen..<12+dataLen+colorLen)
+        
+        // Decompress screen data (RLE)
+        let decompressedData = decompressSPCRLE(data: compressedData, expectedSize: 31840)
+        guard decompressedData.count == 31840 else { return nil }
+        
+        // Decompress palette data (bit vector)
+        let decompressedColor = decompressSPCColor(data: compressedColor, expectedPalettes: 597)
+        guard decompressedColor.count == 19104 else { return nil }
+        
+        // Synthesize SPU layout: 160 bytes padding + 31840 bytes screen + 19104 bytes palette
+        var spuData = Data()
+        spuData.reserveCapacity(160 + 31840 + 19104)
+        spuData.append(contentsOf: repeatElement(0x00, count: 160))
+        spuData.append(decompressedData)
+        spuData.append(decompressedColor)
+        
+        return decodeSpectrum512SPU(data: spuData)
+    }
+
+    private static func decompressSPCRLE(data: Data, expectedSize: Int) -> Data {
+        var output = Data()
+        output.reserveCapacity(expectedSize)
+        var i = 0
+        while i < data.count && output.count < expectedSize {
+            let x = Int8(bitPattern: data[i])
+            i += 1
+            if x >= 0 {
+                let count = Int(x) + 1
+                let copyCount = min(count, expectedSize - output.count)
+                if i + copyCount <= data.count {
+                    output.append(data[i ..< i + copyCount])
+                    i += copyCount
+                } else {
+                    break
+                }
+            } else {
+                let count = -Int(x) + 2
+                if i < data.count {
+                    let val = data[i]
+                    i += 1
+                    let repeatCount = min(count, expectedSize - output.count)
+                    output.append(contentsOf: repeatElement(val, count: repeatCount))
+                } else {
+                    break
+                }
+            }
+        }
+        return output
+    }
+
+    private static func decompressSPCColor(data: Data, expectedPalettes: Int) -> Data {
+        var output = Data()
+        output.reserveCapacity(expectedPalettes * 32)
+        var i = 0
+        
+        for _ in 0 ..< expectedPalettes {
+            guard i + 2 <= data.count else { break }
+            let bitVector = (UInt16(data[i]) << 8) | UInt16(data[i+1])
+            i += 2
+            
+            var palette = [UInt16](repeating: 0, count: 16)
+            for entry in 0 ..< 16 {
+                if (bitVector & (1 << entry)) != 0 {
+                    guard i + 2 <= data.count else { break }
+                    let colorWord = (UInt16(data[i]) << 8) | UInt16(data[i+1])
+                    i += 2
+                    palette[entry] = colorWord
+                } else {
+                    palette[entry] = 0
+                }
+            }
+            
+            for entry in 0 ..< 16 {
+                let word = palette[entry]
+                output.append(UInt8(word >> 8))
+                output.append(UInt8(word & 0xFF))
+            }
+        }
+        return output
+    }
+
+    // MARK: - PhotoChrome PCS Decoder
+
+    private static func decodePhotoChromePCS(data: Data) -> DecodedAtariSTImage? {
+        guard data.count >= 6 else { return nil }
+        
+        let width = Int(data.readUInt16BE(at: 0))
+        let height = Int(data.readUInt16BE(at: 2))
+        let screenMode = data.readUInt8(at: 4)
+        
+        guard width == 320 && height == 200 else { return nil }
+        
+        var offset = 6
+        
+        // Decompress screen 1
+        guard let screen1 = decompressPCSScreen(data: data, offset: &offset, expectedSize: 32000) else { return nil }
+        
+        // Decompress palette 1
+        guard let palette1 = decompressPCSPalette(data: data, offset: &offset, expectedWords: 9616) else { return nil }
+        
+        var screen2: Data? = nil
+        var palette2: [UInt16]? = nil
+        
+        if screenMode != 0 {
+            // Alternating screen mode. Read second screen and second palette
+            guard let s2 = decompressPCSScreen(data: data, offset: &offset, expectedSize: 32000) else { return nil }
+            guard let p2 = decompressPCSPalette(data: data, offset: &offset, expectedWords: 9616) else { return nil }
+            
+            screen2 = s2
+            palette2 = p2
+            
+            // Apply XOR modifications if flag bits are NOT set
+            // bit 0 (0x01) not set: second screen data is xor'ed with first screen
+            if (screenMode & 0x01) == 0 {
+                var xoredScreen = Data(repeating: 0, count: 32000)
+                for idx in 0..<32000 {
+                    xoredScreen[idx] = s2[idx] ^ screen1[idx]
+                }
+                screen2 = xoredScreen
+            }
+            
+            // bit 1 (0x02) not set: second color palette is xor'ed with first
+            if (screenMode & 0x02) == 0 {
+                var xoredPalette = [UInt16](repeating: 0, count: 9616)
+                for idx in 0..<9616 {
+                    xoredPalette[idx] = p2[idx] ^ palette1[idx]
+                }
+                palette2 = xoredPalette
+            }
+        }
+        
+        // Map palettes to 32-bit ARGB values
+        var palette1ARGB = [UInt32]()
+        palette1ARGB.reserveCapacity(9616)
+        for w in palette1 {
+            palette1ARGB.append(decodeAtariColor(w))
+        }
+        
+        var palette2ARGB: [UInt32]? = nil
+        if let p2 = palette2 {
+            var p2ARGB = [UInt32]()
+            p2ARGB.reserveCapacity(9616)
+            for w in p2 {
+                p2ARGB.append(decodeAtariColor(w))
+            }
+            palette2ARGB = p2ARGB
+        }
+        
+        // Render pixels
+        var pixels = [UInt32](repeating: 0xFF000000, count: 320 * 200)
+        
+        for y in 0..<200 {
+            let lineOffset = y * 160
+            for group in 0..<20 {
+                let groupOffset = lineOffset + group * 8
+                
+                // Screen 1 words
+                let w0_1 = screen1.readUInt16BE(at: groupOffset)
+                let w1_1 = screen1.readUInt16BE(at: groupOffset + 2)
+                let w2_1 = screen1.readUInt16BE(at: groupOffset + 4)
+                let w3_1 = screen1.readUInt16BE(at: groupOffset + 6)
+                
+                // Screen 2 words (if alternating mode)
+                let w0_2 = screen2?.readUInt16BE(at: groupOffset) ?? 0
+                let w1_2 = screen2?.readUInt16BE(at: groupOffset + 2) ?? 0
+                let w2_2 = screen2?.readUInt16BE(at: groupOffset + 4) ?? 0
+                let w3_2 = screen2?.readUInt16BE(at: groupOffset + 6) ?? 0
+                
+                for p in 0..<16 {
+                    let shift = 15 - p
+                    
+                    // Screen 1 pixel value
+                    let b0_1 = Int((w0_1 >> shift) & 1)
+                    let b1_1 = Int((w1_1 >> shift) & 1)
+                    let b2_1 = Int((w2_1 >> shift) & 1)
+                    let b3_1 = Int((w3_1 >> shift) & 1)
+                    let c1 = (b3_1 << 3) | (b2_1 << 2) | (b1_1 << 1) | b0_1
+                    
+                    let screenX = group * 16 + p
+                    let paletteIdx1 = findPCSIndex(x: screenX, c: c1)
+                    let lookupIdx1 = y * 48 + paletteIdx1
+                    let color1 = lookupIdx1 < palette1ARGB.count ? palette1ARGB[lookupIdx1] : 0xFF000000
+                    
+                    var finalColor = color1
+                    
+                    if let _ = screen2, let p2ARGB = palette2ARGB {
+                        // Screen 2 pixel value
+                        let b0_2 = Int((w0_2 >> shift) & 1)
+                        let b1_2 = Int((w1_2 >> shift) & 1)
+                        let b2_2 = Int((w2_2 >> shift) & 1)
+                        let b3_2 = Int((w3_2 >> shift) & 1)
+                        let c2 = (b3_2 << 3) | (b2_2 << 2) | (b1_2 << 1) | b0_2
+                        
+                        let paletteIdx2 = findPCSIndex(x: screenX, c: c2)
+                        let lookupIdx2 = y * 48 + paletteIdx2
+                        let color2 = lookupIdx2 < p2ARGB.count ? p2ARGB[lookupIdx2] : 0xFF000000
+                        
+                        // Blend color1 and color2
+                        let r1 = (color1 >> 16) & 0xFF
+                        let g1 = (color1 >> 8) & 0xFF
+                        let b1 = color1 & 0xFF
+                        
+                        let r2 = (color2 >> 16) & 0xFF
+                        let g2 = (color2 >> 8) & 0xFF
+                        let b2 = color2 & 0xFF
+                        
+                        let r = (r1 + r2) / 2
+                        let g = (g1 + g2) / 2
+                        let b = (b1 + b2) / 2
+                        
+                        finalColor = (0xFF << 24) | (r << 16) | (g << 8) | b
+                    }
+                    
+                    pixels[y * 320 + screenX] = finalColor
+                }
+            }
+        }
+        
+        guard let cgImg = makeCGImage(width: 320, height: 200, pixels: pixels) else { return nil }
+        
+        // Grab preview palette from the middle scanline of screen 1 (first 16 colors)
+        var previewPalette = [UInt32]()
+        let midScanlineOffset = 100 * 48
+        if midScanlineOffset + 16 <= palette1ARGB.count {
+            previewPalette = Array(palette1ARGB[midScanlineOffset..<midScanlineOffset+16])
+        }
+        
+        let formatText = screenMode == 0 ? "PhotoChrome Screen (Single)" : "PhotoChrome Screen (Alternating)"
+        
+        return DecodedAtariSTImage(
+            cgImage: cgImg,
+            formatName: formatText,
+            resolutionText: "320x200 (PhotoChrome mode)",
+            palette: previewPalette.isEmpty ? Array(repeating: 0xFF000000, count: 16) : previewPalette
+        )
+    }
+
+    private static func findPCSIndex(x: Int, c: Int) -> Int {
+        var x1 = 4 * c
+        var index = c
+        if x >= x1 {
+            index += 16
+        }
+        if (x >= (x1 + 64 + 12)) && (c < 14) {
+            index += 16
+        }
+        if (x >= (132 + 16)) && (c == 14) {
+            index += 16
+        }
+        if (x >= (132 + 20)) && (c == 15) {
+            index += 16
+        }
+        x1 = 10 * c
+        if (c & 1) == 1 {
+            x1 -= 6
+        }
+        if (x >= (176 + x1)) && (c < 14) {
+            index += 16
+        }
+        return index
+    }
+
+    private static func decompressPCSScreen(data: Data, offset: inout Int, expectedSize: Int) -> Data? {
+        guard offset + 2 <= data.count else { return nil }
+        let ctrlBytesCount = Int(data.readUInt16BE(at: offset))
+        offset += 2
+        
+        guard offset + ctrlBytesCount <= data.count else { return nil }
+        
+        var output = Data()
+        output.reserveCapacity(expectedSize)
+        
+        var c = offset
+        var d = offset + ctrlBytesCount
+        
+        offset += ctrlBytesCount
+        
+        while output.count < expectedSize {
+            guard c < offset else { break }
+            let x = Int8(bitPattern: data[c])
+            c += 1
+            
+            if x < 0 {
+                let count = -Int(x)
+                guard d + count <= data.count else { return nil }
+                output.append(data[d ..< d + count])
+                d += count
+            } else if x == 0 {
+                guard c + 2 <= offset else { return nil }
+                let count = Int(data.readUInt16BE(at: c))
+                c += 2
+                
+                guard d < data.count else { return nil }
+                let val = data[d]
+                d += 1
+                
+                let repeatCount = min(count, expectedSize - output.count)
+                output.append(contentsOf: repeatElement(val, count: repeatCount))
+            } else if x == 1 {
+                guard c + 2 <= offset else { return nil }
+                let count = Int(data.readUInt16BE(at: c))
+                c += 2
+                
+                guard d + count <= data.count else { return nil }
+                output.append(data[d ..< d + count])
+                d += count
+            } else { // x > 1
+                let count = Int(x)
+                guard d < data.count else { return nil }
+                let val = data[d]
+                d += 1
+                
+                let repeatCount = min(count, expectedSize - output.count)
+                output.append(contentsOf: repeatElement(val, count: repeatCount))
+            }
+        }
+        
+        offset = d
+        return output
+    }
+
+    private static func decompressPCSPalette(data: Data, offset: inout Int, expectedWords: Int) -> [UInt16]? {
+        guard offset + 2 <= data.count else { return nil }
+        let ctrlBytesCount = Int(data.readUInt16BE(at: offset))
+        offset += 2
+        
+        guard offset + ctrlBytesCount <= data.count else { return nil }
+        
+        var output = [UInt16]()
+        output.reserveCapacity(expectedWords)
+        
+        var c = offset
+        var d = offset + ctrlBytesCount
+        
+        offset += ctrlBytesCount
+        
+        while output.count < expectedWords {
+            guard c < offset else { break }
+            let x = Int8(bitPattern: data[c])
+            c += 1
+            
+            if x < 0 {
+                let count = -Int(x)
+                guard d + count * 2 <= data.count else { return nil }
+                for _ in 0..<count {
+                    output.append(data.readUInt16BE(at: d))
+                    d += 2
+                }
+            } else if x == 0 {
+                guard c + 2 <= offset else { return nil }
+                let count = Int(data.readUInt16BE(at: c))
+                c += 2
+                
+                guard d + 2 <= data.count else { return nil }
+                let val = data.readUInt16BE(at: d)
+                d += 2
+                
+                let repeatCount = min(count, expectedWords - output.count)
+                output.append(contentsOf: repeatElement(val, count: repeatCount))
+            } else if x == 1 {
+                guard c + 2 <= offset else { return nil }
+                let count = Int(data.readUInt16BE(at: c))
+                c += 2
+                
+                guard d + count * 2 <= data.count else { return nil }
+                for _ in 0..<count {
+                    output.append(data.readUInt16BE(at: d))
+                    d += 2
+                }
+            } else { // x > 1
+                let count = Int(x)
+                guard d + 2 <= data.count else { return nil }
+                let val = data.readUInt16BE(at: d)
+                d += 2
+                
+                let repeatCount = min(count, expectedWords - output.count)
+                output.append(contentsOf: repeatElement(val, count: repeatCount))
+            }
+        }
+        
+        offset = d
+        return output
     }
 
     // MARK: - Planar Screen Decoder

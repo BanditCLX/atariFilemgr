@@ -402,7 +402,8 @@ struct LocalPaneView: View {
         let ext = (filename as NSString).pathExtension.lowercased()
         return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
                ext == "pc1" || ext == "pc2" || ext == "pc3" ||
-               ext == "neo" || ext == "pac" || ext == "spu"
+               ext == "neo" || ext == "pac" || ext == "spu" ||
+               ext == "spc" || ext == "pcs"
     }
 
     private func isSupportedText(_ filename: String) -> Bool {
