@@ -107,6 +107,11 @@ public final class AtariSTImageDecoder {
 
     // MARK: - Main Entry Point
 
+    /// Transparently decompresses Pack-Ice compressed data if the header signature matches.
+    public static func decompressPackIce(data: Data) -> Data? {
+        return SwiftPackIce.decompress(data: data)
+    }
+
     /// Decodes an Atari ST graphics file from binary data.
     /// Supports: DEGAS (.PI1/2/3), DEGAS Elite (.PC1/2/3), NEOchrome (.NEO), STAD (.PAC), and Spectrum 512 (.SPU).
     public static func decode(data: Data, filename: String) -> DecodedAtariSTImage? {

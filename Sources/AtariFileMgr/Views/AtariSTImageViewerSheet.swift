@@ -13,6 +13,37 @@ struct AtariSTImageViewerSheet: View {
     @State private var isFitToWindow: Bool = true
     @State private var hasFailed = false
 
+    @State private var textContents: String = ""
+    @State private var textTheme: TextTheme = .greenScreen
+
+    private var isTextFile: Bool {
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return ["txt", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg"].contains(ext)
+    }
+
+    enum TextTheme: String, CaseIterable, Identifiable {
+        case greenScreen = "Green Screen"
+        case amberScreen = "Amber Screen"
+        case gemDefault = "GEM Default"
+        
+        var id: String { self.rawValue }
+        
+        var textColor: Color {
+            switch self {
+            case .greenScreen: return .green
+            case .amberScreen: return .orange
+            case .gemDefault: return .black
+            }
+        }
+        
+        var backgroundColor: Color {
+            switch self {
+            case .greenScreen, .amberScreen: return Color(white: 0.08)
+            case .gemDefault: return .white
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header Row
@@ -21,7 +52,11 @@ struct AtariSTImageViewerSheet: View {
                     Text(filename)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.primary)
-                    if let img = decodedImage {
+                    if isTextFile {
+                        Text("ASCII Text Document  •  \(fileData.count) bytes")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else if let img = decodedImage {
                         Text("\(img.formatName)  •  \(img.resolutionText)")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
@@ -50,7 +85,16 @@ struct AtariSTImageViewerSheet: View {
 
             // Canvas Area
             ZStack {
-                if let decoded = decodedImage {
+                if isTextFile {
+                    ScrollView([.horizontal, .vertical]) {
+                        Text(textContents)
+                            .font(.system(size: 12, weight: .regular, design: .monospaced))
+                            .foregroundColor(textTheme.textColor)
+                            .padding()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                    .background(textTheme.backgroundColor)
+                } else if let decoded = decodedImage {
                     let nsImg = NSImage(cgImage: decoded.cgImage, size: NSSize(width: decoded.cgImage.width, height: decoded.cgImage.height))
                     
                     ScrollView([.horizontal, .vertical]) {
@@ -101,50 +145,77 @@ struct AtariSTImageViewerSheet: View {
 
             // Footer controls and color blocks
             HStack(alignment: .bottom) {
-                // Palette list
-                if let decoded = decodedImage, !decoded.palette.isEmpty {
+                if isTextFile {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Palette Colors")
+                        Text("Terminal Theme")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.secondary)
-                        HStack(spacing: 3) {
-                            ForEach(0..<decoded.palette.count, id: \.self) { idx in
-                                let argb = decoded.palette[idx]
-                                let r = Double((argb >> 16) & 0xFF) / 255.0
-                                let g = Double((argb >> 8) & 0xFF) / 255.0
-                                let b = Double(argb & 0xFF) / 255.0
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color(red: r, green: g, blue: b))
-                                    .frame(width: 14, height: 14)
-                                    .help("Color index \(idx)")
+                        Picker("", selection: $textTheme) {
+                            ForEach(TextTheme.allCases) { theme in
+                                Text(theme.rawValue).tag(theme)
                             }
-                        }
-                    }
-                }
-
-                Spacer()
-
-                // Display options
-                if decodedImage != nil {
-                    VStack(alignment: .trailing, spacing: 6) {
-                        Picker("", selection: $isFitToWindow) {
-                            Text("Scale to Fit").tag(true)
-                            Text("Custom Zoom").tag(false)
                         }
                         .pickerStyle(.segmented)
                         .labelsHidden()
-                        .frame(width: 160)
+                        .frame(width: 260)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(textContents, forType: .string)
+                    }) {
+                        Label("Copy to Clipboard", systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    // Palette list
+                    if let decoded = decodedImage, !decoded.palette.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Palette Colors")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            HStack(spacing: 3) {
+                                ForEach(0..<decoded.palette.count, id: \.self) { idx in
+                                    let argb = decoded.palette[idx]
+                                    let r = Double((argb >> 16) & 0xFF) / 255.0
+                                    let g = Double((argb >> 8) & 0xFF) / 255.0
+                                    let b = Double(argb & 0xFF) / 255.0
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(Color(red: r, green: g, blue: b))
+                                        .frame(width: 14, height: 14)
+                                        .help("Color index \(idx)")
+                                }
+                            }
+                        }
+                    }
 
-                        if !isFitToWindow {
-                            HStack(spacing: 6) {
-                                Text("Zoom:")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                                Slider(value: $zoomScale, in: 1...8, step: 1)
-                                    .frame(width: 80)
-                                Text("\(Int(zoomScale))x")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .frame(width: 24, alignment: .trailing)
+                    Spacer()
+
+                    // Display options
+                    if decodedImage != nil {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            Picker("", selection: $isFitToWindow) {
+                                Text("Scale to Fit").tag(true)
+                                Text("Custom Zoom").tag(false)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(width: 160)
+
+                            if !isFitToWindow {
+                                HStack(spacing: 6) {
+                                    Text("Zoom:")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                    Slider(value: $zoomScale, in: 1...8, step: 1)
+                                        .frame(width: 80)
+                                    Text("\(Int(zoomScale))x")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .frame(width: 24, alignment: .trailing)
+                                }
                             }
                         }
                     }
@@ -155,7 +226,11 @@ struct AtariSTImageViewerSheet: View {
         }
         .frame(minWidth: 500, minHeight: 420)
         .onAppear {
+        if isTextFile {
+            decodeTextFile()
+        } else {
             decodeImageFile()
+        }
         }
     }
 
@@ -171,6 +246,21 @@ struct AtariSTImageViewerSheet: View {
                 }
             }
         }
+    }
+
+    private func decodeTextFile() {
+        var targetData = fileData
+        if fileData.count >= 12 {
+            let sig = fileData.prefix(4)
+            if sig == Data([0x49, 0x63, 0x65, 0x21]) || sig == Data([0x49, 0x43, 0x45, 0x21]) {
+                if let decompressed = AtariSTImageDecoder.decompressPackIce(data: fileData) {
+                    targetData = decompressed
+                }
+            }
+        }
+        
+        let text = String(data: targetData, encoding: .utf8) ?? String(data: targetData, encoding: .isoLatin1) ?? "Undecodable text format."
+        self.textContents = text
     }
 }
 

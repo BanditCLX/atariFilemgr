@@ -267,7 +267,7 @@ struct MainWindowView: View {
             Divider().frame(height: 12)
 
             // Branding
-            Text("v1.2 · coded by Bandit CLiMATiCS")
+            Text("v1.3 · coded by Bandit CLiMATiCS")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .opacity(0.8)

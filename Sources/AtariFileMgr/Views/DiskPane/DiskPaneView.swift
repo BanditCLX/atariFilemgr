@@ -113,6 +113,14 @@ struct DiskPaneView: View {
                 }
                 .disabled(vm.selectedEntries.count != 1)
 
+                ToolbarIconButton(icon: "eye", tooltip: "View file") {
+                    guard let entry = vm.selectedEntries.first else { return }
+                    if let data = try? appVM.filesystem?.readFile(entry) {
+                        appVM.viewImage(name: entry.displayName, data: data)
+                    }
+                }
+                .disabled(vm.selectedEntries.count != 1 || !(isSupportedImage(vm.selectedEntries.first?.displayName ?? "") || isSupportedText(vm.selectedEntries.first?.displayName ?? "")))
+
                 ToolbarIconButton(icon: "arrow.clockwise", tooltip: "Refresh") {
                     vm.refresh()
                 }
@@ -215,6 +223,10 @@ struct DiskPaneView: View {
                                 TapGesture(count: 2).onEnded {
                                     if entry.isDirectory {
                                         vm.navigateTo(entry: entry)
+                                    } else if isSupportedImage(entry.displayName) || isSupportedText(entry.displayName) {
+                                        if let data = try? appVM.filesystem?.readFile(entry) {
+                                            appVM.viewImage(name: entry.displayName, data: data)
+                                        }
                                     }
                                 }
                             )
@@ -224,13 +236,13 @@ struct DiskPaneView: View {
                                 tempURL: vm.prepareDragURL(for: entry) ?? URL(fileURLWithPath: "")
                             ))
                             .contextMenu {
-                                if isSupportedImage(entry.displayName) {
+                                if isSupportedImage(entry.displayName) || isSupportedText(entry.displayName) {
                                     Button {
                                         if let data = try? appVM.filesystem?.readFile(entry) {
                                             appVM.viewImage(name: entry.displayName, data: data)
                                         }
                                     } label: {
-                                        Label("View Image", systemImage: "eye")
+                                        Label(isSupportedImage(entry.displayName) ? "View Image" : "View File", systemImage: "eye")
                                     }
                                     Divider()
                                 }
@@ -417,6 +429,11 @@ struct DiskPaneView: View {
         return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
                ext == "pc1" || ext == "pc2" || ext == "pc3" ||
                ext == "neo" || ext == "pac" || ext == "spu"
+    }
+
+    private func isSupportedText(_ filename: String) -> Bool {
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return ["txt", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg"].contains(ext)
     }
 }
 

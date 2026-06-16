@@ -66,6 +66,19 @@ struct LocalPaneView: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            Button(action: {
+                guard let selected = vm.selectedItems.first else { return }
+                if let data = try? Data(contentsOf: selected.url) {
+                    appVM.viewImage(name: selected.name, data: data)
+                }
+            }) {
+                Image(systemName: "eye")
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.plain)
+            .disabled(vm.selectedItems.count != 1 || !(isSupportedImage(vm.selectedItems.first?.name ?? "") || isSupportedText(vm.selectedItems.first?.name ?? "")))
+            .help("View file")
+
             Button(action: vm.refresh) {
                 Image(systemName: "arrow.clockwise")
                     .frame(width: 20, height: 20)
@@ -159,7 +172,13 @@ struct LocalPaneView: View {
                             }
                             .simultaneousGesture(
                                 TapGesture(count: 2).onEnded {
-                                    if item.isDirectory { vm.navigateTo(item.url) }
+                                    if item.isDirectory {
+                                        vm.navigateTo(item.url)
+                                    } else if isSupportedImage(item.name) || isSupportedText(item.name) {
+                                        if let data = try? Data(contentsOf: item.url) {
+                                            appVM.viewImage(name: item.name, data: data)
+                                        }
+                                    }
                                 }
                             )
                             .draggable(item.url) {
@@ -174,13 +193,13 @@ struct LocalPaneView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
                             .contextMenu {
-                                if isSupportedImage(item.name) {
+                                if isSupportedImage(item.name) || isSupportedText(item.name) {
                                     Button {
                                         if let data = try? Data(contentsOf: item.url) {
                                             appVM.viewImage(name: item.name, data: data)
                                         }
                                     } label: {
-                                        Label("View Image", systemImage: "eye")
+                                        Label(isSupportedImage(item.name) ? "View Image" : "View File", systemImage: "eye")
                                     }
                                     Divider()
                                 }
@@ -384,6 +403,11 @@ struct LocalPaneView: View {
         return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
                ext == "pc1" || ext == "pc2" || ext == "pc3" ||
                ext == "neo" || ext == "pac" || ext == "spu"
+    }
+
+    private func isSupportedText(_ filename: String) -> Bool {
+        let ext = (filename as NSString).pathExtension.lowercased()
+        return ["txt", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg"].contains(ext)
     }
 }
 
