@@ -42,6 +42,8 @@ struct DiskFileRowView: View {
     @State private var isURLTargeted   = false
     @State private var isEntryTargeted = false
     @State private var showCompressionPopover = false
+    @State private var isHoveringAnchor = false
+    @State private var isHoveringPopover = false
 
     private var isAnyTarget: Bool { isURLTargeted || isEntryTargeted }
 
@@ -65,7 +67,16 @@ struct DiskFileRowView: View {
                             showCompressionPopover = true
                         }
                         .onHover { hovering in
-                            showCompressionPopover = hovering
+                            isHoveringAnchor = hovering
+                            if hovering {
+                                showCompressionPopover = true
+                            } else {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    if !isHoveringAnchor && !isHoveringPopover {
+                                        showCompressionPopover = false
+                                    }
+                                }
+                            }
                         }
                         .popover(isPresented: $showCompressionPopover, arrowEdge: .top) {
                             VStack(alignment: .leading, spacing: 8) {
@@ -103,6 +114,16 @@ struct DiskFileRowView: View {
                             }
                             .padding(10)
                             .frame(width: 220)
+                            .onHover { hovering in
+                                isHoveringPopover = hovering
+                                if !hovering {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        if !isHoveringAnchor && !isHoveringPopover {
+                                            showCompressionPopover = false
+                                        }
+                                    }
+                                }
+                            }
                         }
                 }
             }
