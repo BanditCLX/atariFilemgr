@@ -244,7 +244,6 @@ struct AtariSTImageViewerSheet: View {
             .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 500, idealWidth: 700, maxWidth: .infinity, minHeight: 420, idealHeight: 550, maxHeight: .infinity)
-        .background(SheetWindowAccessor())
         .onAppear {
             if isTextFile {
                 decodeTextFile()
@@ -331,53 +330,6 @@ struct ImageGridBackground: View {
     }
 }
 
-private var sheetProxyKey: UInt8 = 0
-
-final class SheetWindowDelegateProxy: NSObject, NSWindowDelegate {
-    weak var originalDelegate: NSWindowDelegate?
-
-    init(originalDelegate: NSWindowDelegate?) {
-        self.originalDelegate = originalDelegate
-        super.init()
-    }
-
-    override func responds(to aSelector: Selector!) -> Bool {
-        if super.responds(to: aSelector) {
-            return true
-        }
-        return originalDelegate?.responds(to: aSelector) ?? false
-    }
-
-    override func forwardingTarget(for aSelector: Selector!) -> Any? {
-        if let original = originalDelegate, original.responds(to: aSelector) {
-            return original
-        }
-        return super.forwardingTarget(for: aSelector)
-    }
-
-}
-
-struct SheetWindowAccessor: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            if let window = view.window {
-                window.styleMask.insert(.resizable)
-                window.minSize = NSSize(width: 500, height: 420)
-                
-                if objc_getAssociatedObject(window, &sheetProxyKey) == nil {
-                    let proxy = SheetWindowDelegateProxy(originalDelegate: window.delegate)
-                    objc_setAssociatedObject(window, &sheetProxyKey, proxy, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-                    window.delegate = proxy
-                }
-            }
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
-}
-
 public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
     public static let shared = AtariSTImageViewerWindowManager()
     
@@ -433,19 +385,31 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
     }
     
     public func close() {
-        self.window?.close()
-        self.window = nil
-        self.contentController = nil
-        DispatchQueue.main.async {
-            AppViewModel.shared.showViewer = false
+        guard let win = self.window else { return }
+        win.close()
+        
+        if self.window != nil {
+            let controller = self.contentController
+            self.window = nil
+            self.contentController = nil
+            DispatchQueue.main.async {
+                AppViewModel.shared.showViewer = false
+                _ = win
+                _ = controller
+            }
         }
     }
     
     public func windowWillClose(_ notification: Notification) {
+        let win = self.window
+        let controller = self.contentController
         self.window = nil
         self.contentController = nil
+        
         DispatchQueue.main.async {
             AppViewModel.shared.showViewer = false
+            _ = win
+            _ = controller
         }
     }
 }
