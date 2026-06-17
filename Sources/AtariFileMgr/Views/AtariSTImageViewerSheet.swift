@@ -354,17 +354,6 @@ final class SheetWindowDelegateProxy: NSObject, NSWindowDelegate {
         return super.forwardingTarget(for: aSelector)
     }
 
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        let currentSize = sender.frame.size
-        let widthChanged = abs(frameSize.width - currentSize.width) > 0.5
-        let heightChanged = abs(frameSize.height - currentSize.height) > 0.5
-        
-        // If only one dimension changed, reject it by returning current size (prevent edge resize)
-        if (widthChanged && !heightChanged) || (heightChanged && !widthChanged) {
-            return currentSize
-        }
-        return originalDelegate?.windowWillResize?(sender, to: frameSize) ?? frameSize
-    }
 }
 
 struct SheetWindowAccessor: NSViewRepresentable {
