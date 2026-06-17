@@ -872,11 +872,17 @@ public final class AtariSTImageDecoder {
     // MARK: - CGImage Factory
 
     private static func makeCGImage(width: Int, height: Int, pixels: [UInt32]) -> CGImage? {
-        var pixelData = pixels
-        let dataCount = pixelData.count * MemoryLayout<UInt32>.size
-        let data = Data(bytes: &pixelData, count: dataCount)
+        let dataCount = pixels.count * MemoryLayout<UInt32>.size
+        let pointer = UnsafeMutablePointer<UInt32>.allocate(capacity: pixels.count)
+        pointer.initialize(from: pixels, count: pixels.count)
         
-        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+        guard let provider = CGDataProvider(dataInfo: nil, data: pointer, size: dataCount, releaseData: { _, data, _ in
+            UnsafeMutableRawPointer(mutating: data).deallocate()
+        }) else {
+            pointer.deallocate()
+            return nil
+        }
+        
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
         

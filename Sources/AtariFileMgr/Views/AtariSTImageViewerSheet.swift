@@ -363,6 +363,7 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
             win.minSize = NSSize(width: 500, height: 420)
             win.center()
             win.setFrameAutosaveName("AtariSTImageViewerWindow")
+            win.isReleasedWhenClosed = false
             win.delegate = self
             
             self.window = win
