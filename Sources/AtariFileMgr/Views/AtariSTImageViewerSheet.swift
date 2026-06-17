@@ -5,6 +5,7 @@ import SwiftUI
 import ImageIO
 import UniformTypeIdentifiers
 import ObjectiveC
+import AppKit
 
 struct AtariSTImageViewerSheet: View {
     @Binding var isPresented: Bool
@@ -376,4 +377,77 @@ struct SheetWindowAccessor: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
+
+public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
+    public static let shared = AtariSTImageViewerWindowManager()
+    
+    private var window: NSWindow?
+    private var contentController: NSHostingController<AtariSTImageViewerSheet>?
+    
+    private var isPresentedBinding: Binding<Bool> {
+        Binding<Bool>(
+            get: { [weak self] in self?.window?.isVisible ?? false },
+            set: { [weak self] newValue in
+                if !newValue {
+                    self?.close()
+                }
+            }
+        )
+    }
+    
+    public func show(filename: String, fileData: Data) {
+        if let window = self.window {
+            let sheetView = AtariSTImageViewerSheet(
+                isPresented: isPresentedBinding,
+                filename: filename,
+                fileData: fileData
+            )
+            window.contentView = NSHostingView(rootView: sheetView)
+            window.title = filename
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            let sheetView = AtariSTImageViewerSheet(
+                isPresented: isPresentedBinding,
+                filename: filename,
+                fileData: fileData
+            )
+            let hostingController = NSHostingController(rootView: sheetView)
+            self.contentController = hostingController
+            
+            let win = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            win.title = filename
+            win.contentViewController = hostingController
+            win.minSize = NSSize(width: 500, height: 420)
+            win.center()
+            win.setFrameAutosaveName("AtariSTImageViewerWindow")
+            win.delegate = self
+            
+            self.window = win
+            win.makeKeyAndOrderFront(nil)
+        }
+    }
+    
+    public func close() {
+        self.window?.close()
+        self.window = nil
+        self.contentController = nil
+        DispatchQueue.main.async {
+            AppViewModel.shared.showViewer = false
+        }
+    }
+    
+    public func windowWillClose(_ notification: Notification) {
+        self.window = nil
+        self.contentController = nil
+        DispatchQueue.main.async {
+            AppViewModel.shared.showViewer = false
+        }
+    }
+}
+
 
