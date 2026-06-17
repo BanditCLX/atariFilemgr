@@ -372,40 +372,22 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
     
     public func close() {
         guard let win = self.window else { return }
-        
-        // Break references immediately before closing/releasing to prevent dealloc crash
-        win.contentViewController = nil
-        win.contentView = nil
-        win.delegate = nil
         win.close()
         
-        let controller = self.contentController
         self.window = nil
         self.contentController = nil
         
         DispatchQueue.main.async {
             AppViewModel.shared.showViewer = false
-            _ = win
-            _ = controller
         }
     }
     
     public func windowWillClose(_ notification: Notification) {
-        guard let win = self.window else { return }
-        
-        // Break references immediately before closing/releasing to prevent dealloc crash
-        win.contentViewController = nil
-        win.contentView = nil
-        win.delegate = nil
-        
-        let controller = self.contentController
         self.window = nil
         self.contentController = nil
         
         DispatchQueue.main.async {
             AppViewModel.shared.showViewer = false
-            _ = win
-            _ = controller
         }
     }
 }
