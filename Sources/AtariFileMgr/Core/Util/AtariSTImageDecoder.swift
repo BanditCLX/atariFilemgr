@@ -410,11 +410,20 @@ public final class AtariSTImageDecoder {
         let decompressedColor = decompressSPCColor(data: compressedColor, expectedPalettes: 597)
         guard decompressedColor.count == 19104 else { return nil }
         
-        // Synthesize SPU layout: 160 bytes padding + 31840 bytes screen + 19104 bytes palette
+        // Re-map RLE data to standard planar layout using DoChar formula
+        var mappedScreen = Data(repeating: 0x00, count: 32000)
+        for n in 0..<31840 {
+            let val = decompressedData[n]
+            let plane = n / 7960
+            let m = n % 7960
+            let i = 160 + 2 * plane + 8 * (m / 2) + (m & 1)
+            mappedScreen[i] = val
+        }
+        
+        // Synthesize SPU layout: 32000 bytes mapped screen (includes 160 bytes padding) + 19104 bytes palette
         var spuData = Data()
-        spuData.reserveCapacity(160 + 31840 + 19104)
-        spuData.append(contentsOf: repeatElement(0x00, count: 160))
-        spuData.append(decompressedData)
+        spuData.reserveCapacity(32000 + 19104)
+        spuData.append(mappedScreen)
         spuData.append(decompressedColor)
         
         return decodeSpectrum512SPU(data: spuData)
@@ -462,7 +471,7 @@ public final class AtariSTImageDecoder {
             i += 2
             
             var palette = [UInt16](repeating: 0, count: 16)
-            for entry in 0 ..< 16 {
+            for entry in 0 ..< 15 {
                 if (bitVector & (1 << entry)) != 0 {
                     guard i + 2 <= data.count else { break }
                     let colorWord = (UInt16(data[i]) << 8) | UInt16(data[i+1])
@@ -472,6 +481,7 @@ public final class AtariSTImageDecoder {
                     palette[entry] = 0
                 }
             }
+            palette[15] = 0
             
             for entry in 0 ..< 16 {
                 let word = palette[entry]
