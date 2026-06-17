@@ -8,7 +8,6 @@ import ObjectiveC
 import AppKit
 
 struct AtariSTImageViewerSheet: View {
-    @Binding var isPresented: Bool
     let filename: String
     let fileData: Data
 
@@ -77,7 +76,7 @@ struct AtariSTImageViewerSheet: View {
                     }
                 }
                 Spacer()
-                Button(action: { isPresented = false }) {
+                Button(action: { AtariSTImageViewerWindowManager.shared.close() }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(.secondary)
@@ -336,21 +335,9 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var contentController: NSHostingController<AtariSTImageViewerSheet>?
     
-    private var isPresentedBinding: Binding<Bool> {
-        Binding<Bool>(
-            get: { [weak self] in self?.window?.isVisible ?? false },
-            set: { [weak self] newValue in
-                if !newValue {
-                    self?.close()
-                }
-            }
-        )
-    }
-    
     public func show(filename: String, fileData: Data) {
         if let window = self.window {
             let sheetView = AtariSTImageViewerSheet(
-                isPresented: isPresentedBinding,
                 filename: filename,
                 fileData: fileData
             )
@@ -359,7 +346,6 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
             window.makeKeyAndOrderFront(nil)
         } else {
             let sheetView = AtariSTImageViewerSheet(
-                isPresented: isPresentedBinding,
                 filename: filename,
                 fileData: fileData
             )
@@ -386,22 +372,32 @@ public final class AtariSTImageViewerWindowManager: NSObject, NSWindowDelegate {
     
     public func close() {
         guard let win = self.window else { return }
+        
+        // Break references immediately before closing/releasing to prevent dealloc crash
+        win.contentViewController = nil
+        win.contentView = nil
+        win.delegate = nil
         win.close()
         
-        if self.window != nil {
-            let controller = self.contentController
-            self.window = nil
-            self.contentController = nil
-            DispatchQueue.main.async {
-                AppViewModel.shared.showViewer = false
-                _ = win
-                _ = controller
-            }
+        let controller = self.contentController
+        self.window = nil
+        self.contentController = nil
+        
+        DispatchQueue.main.async {
+            AppViewModel.shared.showViewer = false
+            _ = win
+            _ = controller
         }
     }
     
     public func windowWillClose(_ notification: Notification) {
-        let win = self.window
+        guard let win = self.window else { return }
+        
+        // Break references immediately before closing/releasing to prevent dealloc crash
+        win.contentViewController = nil
+        win.contentView = nil
+        win.delegate = nil
+        
         let controller = self.contentController
         self.window = nil
         self.contentController = nil
