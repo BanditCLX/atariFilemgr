@@ -78,7 +78,7 @@ struct MainWindowView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showSaveAs))   { _ in saveAs() }
-        .onReceive(NotificationCenter.default.publisher(for: .diskLoaded))   { _ in diskVM.refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .diskLoaded))   { _ in diskVM.navigateToRoot() }
     }
 
     // MARK: - Main toolbar
