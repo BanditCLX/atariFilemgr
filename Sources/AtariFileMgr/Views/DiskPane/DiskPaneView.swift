@@ -193,7 +193,8 @@ struct DiskPaneView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(vm.entries) { entry in
-                            let isSelected = vm.selectedEntries.contains(entry)
+                            let isHoverActive = vm.hoveredEntry != nil
+                            let isSelected = isHoverActive ? false : vm.selectedEntries.contains(entry)
                             let isHovered = vm.hoveredEntry == entry
                             DiskFileRowView(
                                 entry: entry,

@@ -215,9 +215,10 @@ struct PhysicalLayoutInfoPane: View {
     }
 
     private func clusterMapSection(fs: GEMDOSFilesystem) -> some View {
-        ClusterAllocationMapView(
+        let isHoverActive = vm.hoveredEntry != nil
+        return ClusterAllocationMapView(
             totalClusters: Int(fs.bootSector.clusterCount),
-            selectedEntryClusters: vm.selectedEntryClusters,
+            selectedEntryClusters: isHoverActive ? [] : vm.selectedEntryClusters,
             fs: fs,
             onHoverCluster: { cluster, isHovering in
                 if isHovering {
