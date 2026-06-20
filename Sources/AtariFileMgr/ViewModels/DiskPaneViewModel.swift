@@ -368,6 +368,59 @@ final class DiskPaneViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Deleted Files Recovery
+
+    @Published var deletedFiles: [(path: String, entry: GEMDOSEntry)] = []
+    @Published var isScanningDeleted: Bool = false
+
+    func scanForDeletedFiles() {
+        guard let fs else {
+            deletedFiles = []
+            return
+        }
+        isScanningDeleted = true
+        Task {
+            do {
+                let found = try fs.listDeletedFiles()
+                await MainActor.run {
+                    self.deletedFiles = found
+                    self.isScanningDeleted = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to scan for deleted files: \(error.localizedDescription)"
+                    self.isScanningDeleted = false
+                }
+            }
+        }
+    }
+
+    func recoverFile(_ entry: GEMDOSEntry, suggestedName: String) {
+        guard let fs else { return }
+        isLoading = true
+        Task {
+            do {
+                let data = try fs.recoverDeletedFile(entry)
+                await MainActor.run {
+                    self.isLoading = false
+                    SavePanel.showGenericSave(suggestedName: suggestedName, title: "Recover File") { url in
+                        guard let url = url else { return }
+                        do {
+                            try data.write(to: url)
+                        } catch {
+                            self.errorMessage = "Failed to save recovered file: \(error.localizedDescription)"
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoading = false
+                    self.errorMessage = "Failed to recover file: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     // MARK: - Disk info helpers
 
     var diskInfoString: String {

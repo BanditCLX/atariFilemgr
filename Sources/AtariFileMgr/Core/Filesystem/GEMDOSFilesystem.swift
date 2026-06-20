@@ -415,6 +415,155 @@ final class GEMDOSFilesystem {
         }
     }
 
+    // MARK: - Deleted File Recovery
+
+    /// Scan the root directory and active subdirectories recursively for deleted files.
+    func listDeletedFiles() throws -> [(path: String, entry: GEMDOSEntry)] {
+        var deletedFiles: [(path: String, entry: GEMDOSEntry)] = []
+        try listDeletedFilesRecursively(inDirectoryCluster: 0, currentPath: "", results: &deletedFiles)
+        return deletedFiles
+    }
+
+    private func listDeletedFilesRecursively(inDirectoryCluster cluster: UInt16, currentPath: String, results: inout [(path: String, entry: GEMDOSEntry)]) throws {
+        let data: Data
+        let startSector: Int
+        if cluster == 0 {
+            var rData = Data()
+            for s in bootSector.rootDirStartSector ..< bootSector.rootDirStartSector + bootSector.rootDirSectorCount {
+                rData.append(try image.readSector(s))
+            }
+            data = rData
+            startSector = bootSector.rootDirStartSector
+        } else {
+            data = try readClusterChain(startCluster: cluster)
+            startSector = fat.firstSector(of: cluster)
+        }
+
+        let bytesPerSector = Int(bootSector.bytesPerSector)
+        let count = data.count / GEMDOSDirectory.entrySize
+
+        var activeSubdirs: [GEMDOSEntry] = []
+
+        for i in 0 ..< count {
+            let offset = i * GEMDOSDirectory.entrySize
+            guard offset + GEMDOSDirectory.entrySize <= data.count else { break }
+
+            let firstByte = data.readUInt8(at: offset)
+            if firstByte == 0x00 { break } // end of directory
+
+            let attr = data.readUInt8(at: offset + 11)
+            let attributes = FileAttributes(rawValue: attr)
+
+            // Skip volume labels
+            if attributes.isVolumeLabel && !attributes.isDirectory { continue }
+
+            let time      = data.readUInt16LE(at: offset + 22)
+            let date      = data.readUInt16LE(at: offset + 24)
+            let startClust = data.readUInt16LE(at: offset + 26)
+            let fileSize  = data.readUInt32LE(at: offset + 28)
+
+            let absoluteByte = offset
+            let sectorIndex  = absoluteByte / bytesPerSector
+            let byteInSector = absoluteByte % bytesPerSector
+
+            if firstByte == 0xE5 {
+                // Deleted entry!
+                // Read filename bytes, replacing the first byte with '_' (0x5F)
+                var nameBytes = data.readBytes(at: offset, count: 8)
+                nameBytes[0] = 0x5F
+                let extBytes = data.readBytes(at: offset + 8, count: 3)
+                let parsed = Filename83.decode(nameBytes: nameBytes, extBytes: extBytes)
+
+                let entry = GEMDOSEntry(
+                    id:              UUID(),
+                    name83:          parsed,
+                    attributes:      attributes,
+                    fatDate:         date,
+                    fatTime:         time,
+                    startCluster:    startClust,
+                    fileSize:        fileSize,
+                    directorySector: startSector + sectorIndex,
+                    directoryOffset: byteInSector
+                )
+
+                // Only include files (not directories or volume labels)
+                if entry.isFile {
+                    let path = currentPath.isEmpty ? entry.displayName : "\(currentPath)/\(entry.displayName)"
+                    results.append((path, entry))
+                }
+            } else {
+                // Active entry
+                let nameBytes = data.readBytes(at: offset, count: 8)
+                let extBytes  = data.readBytes(at: offset + 8, count: 3)
+                let parsed = Filename83.decode(nameBytes: nameBytes, extBytes: extBytes)
+
+                let entry = GEMDOSEntry(
+                    id:              UUID(),
+                    name83:          parsed,
+                    attributes:      attributes,
+                    fatDate:         date,
+                    fatTime:         time,
+                    startCluster:    startClust,
+                    fileSize:        fileSize,
+                    directorySector: startSector + sectorIndex,
+                    directoryOffset: byteInSector
+                )
+
+                if entry.isDirectory && entry.displayName != "." && entry.displayName != ".." {
+                    activeSubdirs.append(entry)
+                }
+            }
+        }
+
+        // Recurse into active subdirectories
+        for subdir in activeSubdirs {
+            let path = currentPath.isEmpty ? subdir.displayName : "\(currentPath)/\(subdir.displayName)"
+            try listDeletedFilesRecursively(inDirectoryCluster: subdir.startCluster, currentPath: path, results: &results)
+        }
+    }
+
+    /// Read contiguous clusters starting from `startCluster` for a deleted file of `fileSize`.
+    func readDeletedFile(_ entry: GEMDOSEntry) throws -> Data {
+        guard entry.isFile else { throw GEMDOSError.notAFile(entry.displayName) }
+        if entry.startCluster < 2 { return Data() }
+
+        let clusterSize = self.clusterSize
+        let sectorsPerCluster = Int(bootSector.sectorsPerCluster)
+
+        let clustersNeeded = max(1, (Int(entry.fileSize) + clusterSize - 1) / clusterSize)
+
+        var result = Data()
+        let total = bootSector.clusterCount + 2 // cluster indices start at 2
+        for i in 0 ..< clustersNeeded {
+            let cluster = entry.startCluster + UInt16(i)
+            // Safety check: is cluster number valid?
+            guard cluster < total else { break }
+
+            let firstSector = fat.firstSector(of: cluster)
+            for s in firstSector ..< firstSector + sectorsPerCluster {
+                result.append(try image.readSector(s))
+            }
+        }
+
+        // Truncate to actual file size
+        return result.prefix(Int(entry.fileSize))
+    }
+
+    /// Read and optionally decompress a deleted file if it is compressed (Pack-Ice).
+    func recoverDeletedFile(_ entry: GEMDOSEntry) throws -> Data {
+        let carvedData = try readDeletedFile(entry)
+
+        // Analog to the depack function:
+        let prefix = carvedData.prefix(512)
+        if let format = AtariCompressionDetector.detect(data: prefix),
+           format.name.contains("Pack-Ice") {
+            if let decompressed = SwiftPackIce.decompress(data: carvedData) {
+                return decompressed
+            }
+        }
+        return carvedData
+    }
+
     // MARK: - Create blank formatted disk
 
     /// Format a blank disk image with a fresh FAT12 filesystem.

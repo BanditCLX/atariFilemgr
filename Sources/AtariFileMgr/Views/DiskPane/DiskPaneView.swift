@@ -12,6 +12,7 @@ struct DiskPaneView: View {
     @State private var renameTarget: GEMDOSEntry?
     @State private var dragOver = false
     @State private var showDeleteConfirm = false
+    @State private var showRecovery = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +45,9 @@ struct DiskPaneView: View {
             set: { if !$0 { vm.errorMessage = nil } }
         )) {
             Button("OK") { vm.errorMessage = nil }
+        }
+        .sheet(isPresented: $showRecovery) {
+            DeletedFilesSheetView(vm: vm, isPresented: $showRecovery)
         }
     }
 
@@ -120,6 +124,11 @@ struct DiskPaneView: View {
                     }
                 }
                 .disabled(vm.selectedEntries.count != 1 || !(isSupportedImage(vm.selectedEntries.first?.displayName ?? "") || isSupportedText(vm.selectedEntries.first?.displayName ?? "")))
+
+                ToolbarIconButton(icon: "trash.slash", tooltip: "Recover Deleted Files") {
+                    showRecovery = true
+                }
+                .disabled(appVM.openDiskImage == nil)
 
                 ToolbarIconButton(icon: "arrow.clockwise", tooltip: "Refresh") {
                     vm.refresh()

@@ -9,6 +9,7 @@ A simple, native macOS application to open, browse, modify and extract files fro
 - Create new blank disk images
 - Custom disk geometries support
 - Native macOS application (Apple Silicon + Intel)
+- Show and recover/download deleted files from GEMDOS/FAT12 directory entries with automatic Pack-Ice decompression support
 
 **Note:** You can open `.stx` `.dim` and `.ahd` files, but saving is currently only supported for `.st` and `.msa` formats.
 
@@ -29,6 +30,11 @@ This project is open source. Feel free to contribute!
 → [github.com/BanditCLX/atariFilemgr](https://github.com/BanditCLX/atariFilemgr)
 
 ## Version History
+
+**Version 1.6**
+- Add deleted file recovery feature (with contiguous cluster carving from GEMDOS/FAT12 directory records)
+- Allow browsing and downloading/saving deleted files to the host macOS system
+- Integrate automatic decompression (analog to the depack function) for Pack-Ice compressed files during recovery
 
 **Version 1.5**
 - Add Atari ST compression and executable packer detection (Pack-Ice, Atomik, Rob Northen, StoneCracker, etc.)
