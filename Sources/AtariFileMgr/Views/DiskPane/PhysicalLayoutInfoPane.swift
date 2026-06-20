@@ -305,7 +305,7 @@ struct ClusterAllocationMapView: View, Equatable {
                 .frame(height: 16, alignment: .leading)
                 .padding(.bottom, 6)
 
-            let columns = Array(repeating: GridItem(.flexible(), spacing: 1.5), count: 36)
+            let columns = Array(repeating: GridItem(.flexible(minimum: 2, maximum: 15), spacing: 1.5), count: 36)
             
             LazyVGrid(columns: columns, spacing: 1.5) {
                 ForEach(0..<totalClusters, id: \.self) { index in

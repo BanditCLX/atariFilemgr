@@ -231,6 +231,7 @@ struct MainWindowView: View {
         Rectangle()
             .fill(Color(NSColor.separatorColor))
             .frame(width: 5)
+            .layoutPriority(1)
             .overlay(
                 Image(systemName: "line.3.horizontal")
                     .rotationEffect(.degrees(90))
@@ -257,6 +258,7 @@ struct MainWindowView: View {
         Rectangle()
             .fill(Color(NSColor.separatorColor))
             .frame(width: 5)
+            .layoutPriority(1)
             .overlay(
                 Image(systemName: "line.3.horizontal")
                     .rotationEffect(.degrees(90))
