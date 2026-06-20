@@ -31,6 +31,7 @@ extension UTType {
 struct DiskFileRowView: View {
     let entry: GEMDOSEntry
     let isSelected: Bool
+    let isHovered: Bool
     let compressionFormat: CompressionFormat?
     let onExtract: (() -> Void)?
 
@@ -248,6 +249,8 @@ struct DiskFileRowView: View {
             Color.accentColor.opacity(0.15)
         } else if isSelected {
             Color.accentColor.opacity(0.2)
+        } else if isHovered {
+            Color.accentColor.opacity(0.15)
         } else {
             Color.clear
         }

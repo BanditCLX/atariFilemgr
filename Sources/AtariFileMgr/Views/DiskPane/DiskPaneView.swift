@@ -194,9 +194,11 @@ struct DiskPaneView: View {
                     LazyVStack(spacing: 0) {
                         ForEach(vm.entries) { entry in
                             let isSelected = vm.selectedEntries.contains(entry)
+                            let isHovered = vm.hoveredEntry == entry
                             DiskFileRowView(
                                 entry: entry,
                                 isSelected: isSelected,
+                                isHovered: isHovered,
                                 compressionFormat: detectCompression(for: entry),
                                 onExtract: {
                                     extractAndSave(entry: entry)

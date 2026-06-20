@@ -240,9 +240,15 @@ struct PhysicalLayoutInfoPane: View {
                         .onHover { isHovering in
                             if isHovering {
                                 hoveredCluster = Int(cluster)
+                                if let result = vm.findEntry(forCluster: cluster) {
+                                    vm.hoveredEntry = result.entry
+                                } else {
+                                    vm.hoveredEntry = nil
+                                }
                             } else {
                                 if hoveredCluster == Int(cluster) {
                                     hoveredCluster = nil
+                                    vm.hoveredEntry = nil
                                 }
                             }
                         }

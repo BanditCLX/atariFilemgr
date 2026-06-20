@@ -16,6 +16,7 @@ final class DiskPaneViewModel: ObservableObject {
         }
     }
     @Published var selectedEntryClusters: Set<UInt16> = []
+    @Published var hoveredEntry: GEMDOSEntry? = nil
     @Published var currentCluster: UInt16 = 0  // 0 = root directory
     @Published var breadcrumbs: [(name: String, cluster: UInt16)] = [("/ (root)", 0)]
     @Published var isLoading: Bool = false
