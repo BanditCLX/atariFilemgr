@@ -222,6 +222,9 @@ struct PhysicalLayoutInfoPane: View {
             fs: fs,
             onHoverCluster: { cluster, isHovering in
                 if isHovering {
+                    if !vm.selectedEntries.isEmpty {
+                        vm.selectedEntries.removeAll()
+                    }
                     if let result = vm.findEntry(forCluster: cluster) {
                         vm.hoveredEntry = result.entry
                     } else {
@@ -229,6 +232,11 @@ struct PhysicalLayoutInfoPane: View {
                     }
                 } else {
                     vm.hoveredEntry = nil
+                }
+            },
+            onHoverMap: {
+                if !vm.selectedEntries.isEmpty {
+                    vm.selectedEntries.removeAll()
                 }
             },
             onTapCluster: { cluster in
@@ -277,6 +285,7 @@ struct ClusterAllocationMapView: View, Equatable {
     let selectedEntryClusters: Set<UInt16>
     let fs: GEMDOSFilesystem
     let onHoverCluster: (UInt16, Bool) -> Void
+    let onHoverMap: (() -> Void)?
     let onTapCluster: (UInt16) -> Void
     let hoverTextProvider: (UInt16) -> String
     let clustersForClusterOwner: (UInt16) -> Set<UInt16>
@@ -354,6 +363,11 @@ struct ClusterAllocationMapView: View, Equatable {
                 }
             }
             .id(selectedEntryClusters) // Forces immediate redraw when selection changes
+        }
+        .onHover { isHovering in
+            if isHovering {
+                onHoverMap?()
+            }
         }
     }
 
