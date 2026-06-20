@@ -13,7 +13,8 @@ struct MainWindowView: View {
     // Dialogs
     @State private var showNewDisk     = false
     @State private var showProperties  = false
-    @State private var splitFraction: CGFloat = 0.5
+    @State private var splitFraction1: CGFloat = 0.33
+    @State private var splitFraction2: CGFloat = 0.67
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,15 +30,20 @@ struct MainWindowView: View {
 
                     Divider()
 
-                    // ── Dual panes ────────────────────────────────────────────────
+                    // ── Three panes ────────────────────────────────────────────────
                     HStack(spacing: 0) {
                         LocalPaneView(vm: localVM, diskPaneVM: diskVM)
-                            .frame(width: geo.size.width * splitFraction)
+                            .frame(width: geo.size.width * splitFraction1)
 
-                        dividerHandle(in: geo)
+                        dividerHandle1(in: geo)
 
                         DiskPaneView(vm: diskVM, localVM: localVM)
                             .frame(maxWidth: .infinity)
+
+                        dividerHandle2(in: geo)
+
+                        PhysicalLayoutInfoPane(vm: diskVM)
+                            .frame(width: geo.size.width * (1.0 - splitFraction2))
                     }
                     .coordinateSpace(name: "splitContainer")
                     .frame(maxHeight: .infinity)
@@ -53,7 +59,7 @@ struct MainWindowView: View {
         .sheet(isPresented: $showProperties) { propertiesSheet }
         .onChange(of: appVM.showViewer) { show in
             if show, let name = appVM.viewerImageName, let data = appVM.viewerImageData {
-                AtariSTImageViewerWindowManager.shared.show(filename: name, fileData: data)
+                AtariSTImageViewerWindowManager.shared.show(filename: name, fileData: data, initialMode: appVM.viewerInitialMode)
             } else if !show {
                 AtariSTImageViewerWindowManager.shared.close()
             }
@@ -177,9 +183,11 @@ struct MainWindowView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .frame(width: totalWidth * splitFraction, alignment: .leading)
+            .frame(width: totalWidth * splitFraction1, alignment: .leading)
 
-            Divider().frame(width: 5, height: 16)
+            Rectangle()
+                .fill(Color(NSColor.separatorColor))
+                .frame(width: 5, height: 16)
 
             HStack {
                 Image(systemName: "opticaldisc")
@@ -190,7 +198,21 @@ struct MainWindowView: View {
                     .lineLimit(1)
             }
             .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: max(0, totalWidth * (splitFraction2 - splitFraction1) - 10), alignment: .leading)
+
+            Rectangle()
+                .fill(Color(NSColor.separatorColor))
+                .frame(width: 5, height: 16)
+
+            HStack {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text("Physical Layout Info")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(width: totalWidth * (1.0 - splitFraction2), alignment: .leading)
         }
         .padding(.vertical, 4)
         .background(Color(NSColor.controlBackgroundColor))
@@ -205,7 +227,7 @@ struct MainWindowView: View {
 
     // MARK: - Divider handle (resizable pane split)
 
-    private func dividerHandle(in geo: GeometryProxy) -> some View {
+    private func dividerHandle1(in geo: GeometryProxy) -> some View {
         Rectangle()
             .fill(Color(NSColor.separatorColor))
             .frame(width: 5)
@@ -219,7 +241,33 @@ struct MainWindowView: View {
                 DragGesture(coordinateSpace: .named("splitContainer"))
                     .onChanged { value in
                         let newFraction = value.location.x / geo.size.width
-                        splitFraction = max(0.25, min(0.75, newFraction))
+                        splitFraction1 = max(0.15, min(splitFraction2 - 0.1, newFraction))
+                    }
+            )
+            .onHover { inside in
+                if inside {
+                    NSCursor.resizeLeftRight.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+
+    private func dividerHandle2(in geo: GeometryProxy) -> some View {
+        Rectangle()
+            .fill(Color(NSColor.separatorColor))
+            .frame(width: 5)
+            .overlay(
+                Image(systemName: "line.3.horizontal")
+                    .rotationEffect(.degrees(90))
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+            )
+            .gesture(
+                DragGesture(coordinateSpace: .named("splitContainer"))
+                    .onChanged { value in
+                        let newFraction = value.location.x / geo.size.width
+                        splitFraction2 = max(splitFraction1 + 0.1, min(0.85, newFraction))
                     }
             )
             .onHover { inside in
@@ -269,7 +317,7 @@ struct MainWindowView: View {
             Divider().frame(height: 12)
 
             // Branding
-            Text("v1.6 · coded by Bandit CLiMATiCS")
+            Text("v1.8 · coded by Bandit CLiMATiCS")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .opacity(0.8)

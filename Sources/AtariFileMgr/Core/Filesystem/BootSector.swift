@@ -214,10 +214,16 @@ struct BootSector {
         Self.bootChecksum(rawData) == 0x1234
     }
 
+    /// Returns true if there is any non-zero boot code in the sector.
+    var hasBootCode: Bool {
+        rawData[36...509].contains { $0 != 0x00 }
+    }
+
     // MARK: - Serialise changes back into rawData
 
     /// Write the current BPB fields back into rawData.
     mutating func serialise() {
+        rawData.writeASCIIString(oemName.padding(toLength: 8, withPad: " ", startingAt: 0), at: 3, length: 8)
         rawData.writeUInt16LE(bytesPerSector,    at: 11)
         rawData.writeUInt8(sectorsPerCluster,    at: 13)
         rawData.writeUInt16LE(reservedSectors,   at: 14)

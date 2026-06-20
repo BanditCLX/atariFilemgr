@@ -125,6 +125,14 @@ struct DiskPaneView: View {
                 }
                 .disabled(vm.selectedEntries.count != 1 || !(isSupportedImage(vm.selectedEntries.first?.displayName ?? "") || isSupportedText(vm.selectedEntries.first?.displayName ?? "")))
 
+                ToolbarIconButton(icon: "doc.plaintext", tooltip: "Hex Editor/Viewer") {
+                    guard let entry = vm.selectedEntries.first else { return }
+                    if let data = try? appVM.filesystem?.readFile(entry) {
+                        appVM.viewHex(name: entry.displayName, data: data)
+                    }
+                }
+                .disabled(vm.selectedEntries.count != 1 || vm.selectedEntries.first?.isDirectory == true)
+
                 ToolbarIconButton(icon: "trash.slash", tooltip: "Recover Deleted Files") {
                     showRecovery = true
                 }
@@ -526,7 +534,7 @@ struct DiskPaneView: View {
 
     private func isSupportedText(_ filename: String) -> Bool {
         let ext = (filename as NSString).pathExtension.lowercased()
-        return ["txt", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg"].contains(ext)
+        return ["txt", "me", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg", "prg", "tos", "ttp", "acc"].contains(ext)
     }
 }
 

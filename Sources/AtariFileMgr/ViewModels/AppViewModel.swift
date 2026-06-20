@@ -22,11 +22,17 @@ final class AppViewModel: ObservableObject {
     @Published var showViewer: Bool = false
     @Published var viewerImageName: String? = nil
     @Published var viewerImageData: Data? = nil
+    @Published var viewerInitialMode: ViewMode = .image
 
-    func viewImage(name: String, data: Data) {
+    func viewImage(name: String, data: Data, initialMode: ViewMode = .image) {
         self.viewerImageName = name
         self.viewerImageData = data
+        self.viewerInitialMode = initialMode
         self.showViewer = true
+    }
+
+    func viewHex(name: String, data: Data) {
+        self.viewImage(name: name, data: data, initialMode: .hexDump)
     }
 
 
@@ -248,4 +254,14 @@ struct UndoableAction {
     let description: String
     let undo: () throws -> Void
     let redo: () throws -> Void
+}
+
+// MARK: - ViewMode
+
+enum ViewMode: String, CaseIterable, Identifiable {
+    case image = "Image"
+    case text = "Text"
+    case hexDump = "Hex Dump"
+    
+    var id: String { self.rawValue }
 }

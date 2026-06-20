@@ -189,7 +189,7 @@ struct LocalItem: Identifiable, Hashable {
     private func sfSymbol(for ext: String) -> String {
         switch ext.lowercased() {
         case "st", "msa":  return "opticaldisc"
-        case "txt", "md":  return "doc.text"
+        case "txt", "md", "me":  return "doc.text"
         case "png", "jpg", "gif", "neo", "pi1", "pi2", "pi3":
             return "photo"
         case "prg", "tos", "ttp": return "cpu"

@@ -10,7 +10,12 @@ final class DiskPaneViewModel: ObservableObject {
     // MARK: - Published state
 
     @Published var entries: [GEMDOSEntry] = []
-    @Published var selectedEntries: Set<GEMDOSEntry> = []
+    @Published var selectedEntries: Set<GEMDOSEntry> = [] {
+        didSet {
+            updateSelectedEntryClusters()
+        }
+    }
+    @Published var selectedEntryClusters: Set<UInt16> = []
     @Published var currentCluster: UInt16 = 0  // 0 = root directory
     @Published var breadcrumbs: [(name: String, cluster: UInt16)] = [("/ (root)", 0)]
     @Published var isLoading: Bool = false
@@ -418,6 +423,119 @@ final class DiskPaneViewModel: ObservableObject {
                     self.errorMessage = "Failed to recover file: \(error.localizedDescription)"
                 }
             }
+        }
+    }
+
+    func updateSelectedEntryClusters() {
+        guard let fs = fs else {
+            selectedEntryClusters = []
+            return
+        }
+        if let selected = selectedEntries.first {
+            let chain = fs.getClusterChain(for: selected, isDeleted: false)
+            selectedEntryClusters = Set(chain)
+        } else {
+            selectedEntryClusters = []
+        }
+    }
+
+    func setOEMName(_ name: String) {
+        guard let fs else { return }
+        do {
+            try fs.setOEMName(name)
+            appVM?.isDirty = true
+            objectWillChange.send()
+        } catch {
+            self.errorMessage = "Failed to set OEM ID: \(error.localizedDescription)"
+        }
+    }
+
+    func makeBootable() {
+        guard let fs else { return }
+        do {
+            try fs.makeBootable()
+            appVM?.isDirty = true
+            objectWillChange.send()
+        } catch {
+            self.errorMessage = "Failed to make bootable: \(error.localizedDescription)"
+        }
+    }
+
+    func installStandardBootCode() {
+        guard let fs else { return }
+        do {
+            try fs.installStandardBootCode()
+            appVM?.isDirty = true
+            objectWillChange.send()
+        } catch {
+            self.errorMessage = "Failed to write bootloader: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - Cluster mapping & Editor launch
+
+    func findEntry(forCluster targetCluster: UInt16) -> (entry: GEMDOSEntry, isDeleted: Bool)? {
+        guard let fs = fs else { return nil }
+        // 1. Scan active files recursively starting at root
+        if let active = try? findEntryInDirectory(cluster: 0, targetCluster: targetCluster) {
+            return (active, false)
+        }
+        // 2. Scan deleted files
+        if let deletedList = try? fs.listDeletedFiles() {
+            for (_, entry) in deletedList {
+                let chain = fs.getClusterChain(for: entry, isDeleted: true)
+                if chain.contains(targetCluster) {
+                    return (entry, true)
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func findEntryInDirectory(cluster: UInt16, targetCluster: UInt16) throws -> GEMDOSEntry? {
+        guard let fs = fs else { return nil }
+        let entries = try (cluster == 0 ? fs.listRootDirectory() : fs.listDirectory(cluster: cluster))
+        
+        for entry in entries {
+            if entry.isDirectory {
+                let chain = fs.getClusterChain(for: entry, isDeleted: false)
+                if chain.contains(targetCluster) {
+                    return entry
+                }
+                if let found = try findEntryInDirectory(cluster: entry.startCluster, targetCluster: targetCluster) {
+                    return found
+                }
+            } else {
+                let chain = fs.getClusterChain(for: entry, isDeleted: false)
+                if chain.contains(targetCluster) {
+                    return entry
+                }
+            }
+        }
+        return nil
+    }
+
+    func openClusterFileInHexEditor(cluster: UInt16) {
+        guard let fs = fs else { return }
+        isLoading = true
+        Task {
+            if let result = findEntry(forCluster: cluster) {
+                do {
+                    let data: Data
+                    if result.isDeleted {
+                        data = try fs.recoverDeletedFile(result.entry)
+                    } else if result.entry.isDirectory {
+                        data = try fs.readClusterChain(startCluster: result.entry.startCluster)
+                    } else {
+                        data = try fs.readFile(result.entry)
+                    }
+                    let filename = result.isDeleted ? "[DELETED] " + result.entry.displayName : result.entry.displayName
+                    appVM?.viewHex(name: filename, data: data)
+                } catch {
+                    self.errorMessage = "Failed to read file: \(error.localizedDescription)"
+                }
+            }
+            isLoading = false
         }
     }
 

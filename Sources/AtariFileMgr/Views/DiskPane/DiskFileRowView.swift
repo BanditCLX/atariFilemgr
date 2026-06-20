@@ -220,7 +220,7 @@ struct DiskFileRowView: View {
         if entry.isDirectory { return "folder.fill" }
         switch entry.name83.ext.lowercased() {
         case "prg", "tos", "ttp", "acc": return "cpu"
-        case "txt", "nfo", "doc":        return "doc.text"
+        case "txt", "nfo", "doc", "me":        return "doc.text"
         case "neo", "pi1", "pi2", "pi3",
              "pc1", "pc2", "pc3":        return "photo"
         case "mod", "snd", "ym":         return "waveform"

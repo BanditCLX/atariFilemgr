@@ -264,7 +264,7 @@ final class GEMDOSFilesystem {
     // MARK: - Cluster I/O helpers
 
     /// Read the entire cluster chain for a given starting cluster.
-    private func readClusterChain(startCluster: UInt16) throws -> Data {
+    func readClusterChain(startCluster: UInt16) throws -> Data {
         let chain = fat.clusterChain(startingAt: startCluster)
         var result = Data()
         let _ = Int(bootSector.bytesPerSector) // sectorSize used via readSector size
@@ -562,6 +562,83 @@ final class GEMDOSFilesystem {
             }
         }
         return carvedData
+    }
+
+    // MARK: - Boot Sector and Cluster Helpers
+
+    /// Query the 12-bit FAT value for a given cluster.
+    func getFatEntry(for cluster: UInt16) -> UInt16 {
+        fat.entry(for: cluster)
+    }
+
+    /// Get the list of clusters occupied by a file (active or deleted).
+    func getClusterChain(for entry: GEMDOSEntry, isDeleted: Bool) -> [UInt16] {
+        if isDeleted {
+            if entry.startCluster < 2 { return [] }
+            let clustersNeeded = max(1, (Int(entry.fileSize) + clusterSize - 1) / clusterSize)
+            let total = bootSector.clusterCount + 2
+            return (0 ..< clustersNeeded).map { entry.startCluster + UInt16($0) }.filter { Int($0) < total }
+        } else {
+            return fat.clusterChain(startingAt: entry.startCluster)
+        }
+    }
+
+    /// Update the OEM Name of the boot sector.
+    func setOEMName(_ name: String) throws {
+        var bootData = try image.readSector(0)
+        var tempSector = try BootSector.parse(from: bootData)
+        tempSector.oemName = name.padding(toLength: 8, withPad: " ", startingAt: 0)
+        tempSector.serialise()
+        // Re-patch checksum to preserve bootability status
+        bootData = tempSector.rawData
+        bootData = BootSector.patchBootChecksum(bootData)
+        try image.writeSector(0, data: bootData)
+        self.bootSector = try BootSector.parse(from: bootData)
+    }
+
+    /// Make the boot sector bootable (adjust word checksum).
+    func makeBootable() throws {
+        var bootData = try image.readSector(0)
+        bootData = BootSector.patchBootChecksum(bootData)
+        try image.writeSector(0, data: bootData)
+        self.bootSector = try BootSector.parse(from: bootData)
+    }
+
+    /// Install a standard minimal executable bootloader to sector 0.
+    func installStandardBootCode() throws {
+        var bootData = try image.readSector(0)
+        
+        // Branch target is offset 38. 38 - 2 = 36 = 0x24.
+        bootData.writeUInt8(0x60, at: 0) // BRA.S opcode
+        bootData.writeUInt8(0x24, at: 1) // branch offset
+        bootData.writeUInt8(0x00, at: 2)
+        
+        // Minimal 68000 executable boot code (PEA msg, Cconws, TRAP 1, Cnecin, RTS)
+        var bootCode = Data([
+            0x48, 0x7A, 0x00, 0x12, // PEA msg (msg at offset 60. PC after this is at 42. 60 - 42 = 18 = 0x12)
+            0x3F, 0x3C, 0x00, 0x09, // MOVE.W #9, -(SP)
+            0x4E, 0x41,             // TRAP #1 (GEMDOS trap)
+            0x5C, 0x8F,             // ADDQ.L #6, SP
+            0x3F, 0x3C, 0x00, 0x07, // MOVE.W #7, -(SP)
+            0x4E, 0x41,             // TRAP #1
+            0x54, 0x8F,             // ADDQ.L #2, SP
+            0x4E, 0x75              // RTS
+        ])
+        
+        let msg = "Booting from Atari ST disk...\r\n\0".data(using: .ascii)!
+        bootCode.append(msg)
+        
+        // Write the boot code starting at offset 38
+        for i in 0 ..< bootCode.count {
+            if 38 + i < 510 {
+                bootData.writeUInt8(bootCode[i], at: 38 + i)
+            }
+        }
+        
+        // Patch checksum to be bootable
+        bootData = BootSector.patchBootChecksum(bootData)
+        try image.writeSector(0, data: bootData)
+        self.bootSector = try BootSector.parse(from: bootData)
     }
 
     // MARK: - Create blank formatted disk

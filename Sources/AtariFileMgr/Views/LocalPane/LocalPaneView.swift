@@ -408,7 +408,7 @@ struct LocalPaneView: View {
 
     private func isSupportedText(_ filename: String) -> Bool {
         let ext = (filename as NSString).pathExtension.lowercased()
-        return ["txt", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg"].contains(ext)
+        return ["txt", "me", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg", "prg", "tos", "ttp", "acc"].contains(ext)
     }
 }
 
