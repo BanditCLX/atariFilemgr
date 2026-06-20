@@ -246,6 +246,13 @@ struct PhysicalLayoutInfoPane: View {
                     return "Clust \(cluster): \(result.entry.displayName)\(sizeStr) · \(status)"
                 }
                 return "Clust \(cluster): Allocated"
+            },
+            clustersForClusterOwner: { cluster in
+                if let result = vm.findEntry(forCluster: cluster) {
+                    let chain = fs.getClusterChain(for: result.entry, isDeleted: result.isDeleted)
+                    return Set(chain)
+                }
+                return []
             }
         ).equatable()
     }
@@ -271,6 +278,7 @@ struct ClusterAllocationMapView: View, Equatable {
     let onHoverCluster: (UInt16, Bool) -> Void
     let onTapCluster: (UInt16) -> Void
     let hoverTextProvider: (UInt16) -> String
+    let clustersForClusterOwner: (UInt16) -> Set<UInt16>
 
     @State private var hoveredCluster: Int? = nil
 
@@ -281,7 +289,12 @@ struct ClusterAllocationMapView: View, Equatable {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        let hoveredChain: Set<UInt16> = {
+            guard let hc = hoveredCluster else { return [] }
+            return clustersForClusterOwner(UInt16(hc))
+        }()
+        
+        return VStack(alignment: .leading, spacing: 2) {
             Text("CLUSTER ALLOCATION MAP")
                 .font(.caption).bold()
             
@@ -301,16 +314,18 @@ struct ClusterAllocationMapView: View, Equatable {
                     let isFree = fatVal == 0x000
                     let isBad = fatVal == 0xFF7
                     let isSelected = selectedEntryClusters.contains(cluster)
+                    let isHoveredOwner = hoveredChain.contains(cluster)
+                    let isHighlighted = isSelected || isHoveredOwner
                     
                     let cellColor: Color = {
-                        if isSelected { return Color.accentColor }
+                        if isHighlighted { return Color.accentColor }
                         if isBad { return Color.red }
                         if isFree { return Color.gray.opacity(0.12) }
                         return Color.gray.opacity(0.55)
                     }()
                     
                     let strokeColor: Color = {
-                        if isSelected { return Color.accentColor }
+                        if isHighlighted { return Color.accentColor }
                         if isBad { return Color.red }
                         return Color(NSColor.textColor).opacity(0.18)
                     }()
@@ -319,7 +334,7 @@ struct ClusterAllocationMapView: View, Equatable {
                         .fill(cellColor)
                         .overlay(
                             RoundedRectangle(cornerRadius: 1.0)
-                                .stroke(strokeColor, lineWidth: isSelected ? 0.8 : 0.4)
+                                .stroke(strokeColor, lineWidth: isHighlighted ? 0.8 : 0.4)
                         )
                         .frame(height: 6)
                         .onHover { isHovering in
