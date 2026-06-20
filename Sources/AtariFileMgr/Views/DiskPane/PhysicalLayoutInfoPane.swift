@@ -196,16 +196,16 @@ struct PhysicalLayoutInfoPane: View {
     private func clusterMapSection(fs: GEMDOSFilesystem) -> some View {
         let totalClusters = fs.bootSector.clusterCount
         
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("CLUSTER ALLOCATION MAP")
-                    .font(.caption).bold()
-                Spacer()
-                Text(hoverText(fs: fs))
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.bottom, 4)
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("CLUSTER ALLOCATION MAP")
+                .font(.caption).bold()
+            
+            Text(hoverText(fs: fs))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(height: 16, alignment: .leading)
+                .padding(.bottom, 6)
 
             let columns = Array(repeating: GridItem(.flexible(), spacing: 1.5), count: 36)
             
