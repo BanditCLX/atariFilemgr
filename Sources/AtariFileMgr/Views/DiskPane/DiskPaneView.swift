@@ -120,15 +120,7 @@ struct DiskPaneView: View {
                 ToolbarIconButton(icon: "eye", tooltip: "View file") {
                     guard let entry = vm.selectedEntries.first else { return }
                     if let data = try? appVM.filesystem?.readFile(entry) {
-                        appVM.viewImage(name: entry.displayName, data: data)
-                    }
-                }
-                .disabled(vm.selectedEntries.count != 1 || !(isSupportedImage(vm.selectedEntries.first?.displayName ?? "") || isSupportedText(vm.selectedEntries.first?.displayName ?? "")))
-
-                ToolbarIconButton(icon: "doc.plaintext", tooltip: "Hex Editor/Viewer") {
-                    guard let entry = vm.selectedEntries.first else { return }
-                    if let data = try? appVM.filesystem?.readFile(entry) {
-                        appVM.viewHex(name: entry.displayName, data: data)
+                        appVM.viewFile(name: entry.displayName, data: data)
                     }
                 }
                 .disabled(vm.selectedEntries.count != 1 || vm.selectedEntries.first?.isDirectory == true)
@@ -247,9 +239,9 @@ struct DiskPaneView: View {
                                 TapGesture(count: 2).onEnded {
                                     if entry.isDirectory {
                                         vm.navigateTo(entry: entry)
-                                    } else if isSupportedImage(entry.displayName) || isSupportedText(entry.displayName) {
+                                    } else {
                                         if let data = try? appVM.filesystem?.readFile(entry) {
-                                            appVM.viewImage(name: entry.displayName, data: data)
+                                            appVM.viewFile(name: entry.displayName, data: data)
                                         }
                                     }
                                 }
@@ -260,10 +252,10 @@ struct DiskPaneView: View {
                                 tempURL: vm.prepareDragURL(for: entry) ?? URL(fileURLWithPath: "")
                             ))
                             .contextMenu {
-                                if isSupportedImage(entry.displayName) || isSupportedText(entry.displayName) {
+                                if !entry.isDirectory {
                                     Button {
                                         if let data = try? appVM.filesystem?.readFile(entry) {
-                                            appVM.viewImage(name: entry.displayName, data: data)
+                                            appVM.viewFile(name: entry.displayName, data: data)
                                         }
                                     } label: {
                                         Label(isSupportedImage(entry.displayName) ? "View Image" : "View File", systemImage: "eye")
@@ -532,12 +524,9 @@ struct DiskPaneView: View {
         return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
                ext == "pc1" || ext == "pc2" || ext == "pc3" ||
                ext == "neo" || ext == "pac" || ext == "spu" ||
-               ext == "spc" || ext == "pcs"
-    }
-
-    private func isSupportedText(_ filename: String) -> Bool {
-        let ext = (filename as NSString).pathExtension.lowercased()
-        return ["txt", "me", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg", "prg", "tos", "ttp", "acc"].contains(ext)
+               ext == "spc" || ext == "pcs" ||
+               ext == "png" || ext == "jpg" || ext == "jpeg" ||
+               ext == "gif" || ext == "bmp" || ext == "tiff" || ext == "tif" || ext == "webp"
     }
 }
 

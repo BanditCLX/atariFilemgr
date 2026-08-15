@@ -69,14 +69,14 @@ struct LocalPaneView: View {
             Button(action: {
                 guard let selected = vm.selectedItems.first else { return }
                 if let data = try? Data(contentsOf: selected.url) {
-                    appVM.viewImage(name: selected.name, data: data)
+                    appVM.viewFile(name: selected.name, data: data)
                 }
             }) {
                 Image(systemName: "eye")
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
-            .disabled(vm.selectedItems.count != 1 || !(isSupportedImage(vm.selectedItems.first?.name ?? "") || isSupportedText(vm.selectedItems.first?.name ?? "")))
+            .disabled(vm.selectedItems.count != 1 || vm.selectedItems.first?.isDirectory == true)
             .help("View file")
 
             Button(action: vm.refresh) {
@@ -174,9 +174,9 @@ struct LocalPaneView: View {
                                 TapGesture(count: 2).onEnded {
                                     if item.isDirectory {
                                         vm.navigateTo(item.url)
-                                    } else if isSupportedImage(item.name) || isSupportedText(item.name) {
+                                    } else {
                                         if let data = try? Data(contentsOf: item.url) {
-                                            appVM.viewImage(name: item.name, data: data)
+                                            appVM.viewFile(name: item.name, data: data)
                                         }
                                     }
                                 }
@@ -193,10 +193,10 @@ struct LocalPaneView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                             }
                             .contextMenu {
-                                if isSupportedImage(item.name) || isSupportedText(item.name) {
+                                if !item.isDirectory {
                                     Button {
                                         if let data = try? Data(contentsOf: item.url) {
-                                            appVM.viewImage(name: item.name, data: data)
+                                            appVM.viewFile(name: item.name, data: data)
                                         }
                                     } label: {
                                         Label(isSupportedImage(item.name) ? "View Image" : "View File", systemImage: "eye")
@@ -403,12 +403,9 @@ struct LocalPaneView: View {
         return ext == "pi1" || ext == "pi2" || ext == "pi3" ||
                ext == "pc1" || ext == "pc2" || ext == "pc3" ||
                ext == "neo" || ext == "pac" || ext == "spu" ||
-               ext == "spc" || ext == "pcs"
-    }
-
-    private func isSupportedText(_ filename: String) -> Bool {
-        let ext = (filename as NSString).pathExtension.lowercased()
-        return ["txt", "me", "s", "diz", "lst", "bas", "asm", "src", "c", "h", "pas", "doc", "asc", "ata", "hlp", "inf", "cfg", "prg", "tos", "ttp", "acc"].contains(ext)
+               ext == "spc" || ext == "pcs" ||
+               ext == "png" || ext == "jpg" || ext == "jpeg" ||
+               ext == "gif" || ext == "bmp" || ext == "tiff" || ext == "tif" || ext == "webp"
     }
 }
 

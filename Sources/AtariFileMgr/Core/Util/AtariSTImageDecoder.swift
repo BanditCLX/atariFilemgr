@@ -3,6 +3,7 @@
 
 import Foundation
 import CoreGraphics
+import AppKit
 
 public struct DecodedAtariSTImage {
     public let cgImage: CGImage
@@ -147,6 +148,24 @@ public final class AtariSTImageDecoder {
         }
         if ext == "pcs" {
             return decodePhotoChromePCS(data: targetData)
+        }
+
+        // Standard modern graphic formats (PNG, JPG, GIF, BMP, TIFF, WebP, etc.)
+        if ["png", "jpg", "jpeg", "gif", "bmp", "tiff", "tif", "webp", "icns"].contains(ext) ||
+           targetData.starts(with: [0x89, 0x50, 0x4E, 0x47]) || // PNG
+           targetData.starts(with: [0xFF, 0xD8]) || // JPEG
+           targetData.starts(with: [0x47, 0x49, 0x46]) || // GIF
+           targetData.starts(with: [0x42, 0x4D]) { // BMP
+            if let nsImage = NSImage(data: targetData),
+               let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                let fmtName = ext.isEmpty ? "Image" : ext.uppercased()
+                return DecodedAtariSTImage(
+                    cgImage: cgImage,
+                    formatName: "\(fmtName) Graphics",
+                    resolutionText: "\(cgImage.width) × \(cgImage.height)",
+                    palette: []
+                )
+            }
         }
 
         // Fallback detection by size or signature

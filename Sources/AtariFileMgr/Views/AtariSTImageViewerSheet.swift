@@ -160,17 +160,7 @@ struct AtariSTImageViewerSheet: View {
         }
         .frame(minWidth: 600, idealWidth: 750, maxWidth: .infinity, minHeight: 450, idealHeight: 550, maxHeight: .infinity)
         .onAppear {
-            if initialMode == .image {
-                if isTextFile {
-                    viewMode = .text
-                } else if isImageFile {
-                    viewMode = .image
-                } else {
-                    viewMode = .hexDump
-                }
-            } else {
-                viewMode = initialMode
-            }
+            viewMode = initialMode
 
             hexToInput = "\(fileData.count)"
             chunkFilename = (filename as NSString).deletingPathExtension + ".chunk"
