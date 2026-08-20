@@ -36,7 +36,6 @@ This project is open source. Feel free to contribute!
 ## Version History
 
 **Version 1.8**
-- Add `.me` to the list of viewable text files and assign document icons
 - Add executable formats (`.prg`, `.tos`, `.ttp`, `.acc`) to the file viewer
 - Add Text View Format selector to the text viewer with three options:
   - **RAW TEXT**: Warns when trying to read a binary executable or data block
